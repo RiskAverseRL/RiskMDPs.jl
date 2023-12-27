@@ -1,0 +1,19 @@
+name = "RiskMDPs"
+uuid = "1089d871-8a27-4942-aa72-d4a93dd1dac5"
+authors = ["Marek Petrik <mpetrik@cs.unh.edu>"]
+version = "0.1.0"
+
+[deps]
+MDPs = "faa839ec-fb2b-412e-b807-f8b3264e2d6a"
+RiskMeasures = "b5a8929a-7a15-4aed-937e-21e1a404cbc5"
+
+[compat]
+julia = "1.9"
+MDPs = "0.1.0"
+RiskMeasures = "0.4.0"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
