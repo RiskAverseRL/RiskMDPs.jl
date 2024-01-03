@@ -1,15 +1,17 @@
+import MDPs: horizon, discount, qvalue
+
 # --------------------------------------------------------------
 # Nested risk: infinite horizon
 # --------------------------------------------------------------
 
 """
 Represents a discounted infinite horizon objective with an iterated
-risk measure.
+risk measure. Considers only deterministic policies.
 
 The function `risk` maps a vector of values and probabilities to the
 risk value
 """
-struct NestedInfiniteH <: Stationary
+struct NestedInfiniteH <: StationaryDet
     γ::Float64
     risk::Function
 
@@ -24,7 +26,7 @@ end
 
 Compute qvalue of a nested (or iterated) risk-averse objective.
 """
-@inline function qvalue(model::MDP{S,A}, obj::NestedInfiniteH, s::S, a::A, v) where {S,A} 
+function qvalue(model::MDP{S,A}, obj::NestedInfiniteH, s::S, a::A, v) where {S,A} 
     val = 0.0
     # TODO: this allocates memory
     X = Vector{Float64}() # random variable
@@ -36,35 +38,34 @@ Compute qvalue of a nested (or iterated) risk-averse objective.
     obj.risk(X, P) :: Float64
 end
 
+discount(o::NestedInfiniteH) = o.γ
 
 # ---------------------------------------------------------------
 # Nested risk: finite horizon 
 # ---------------------------------------------------------------
 
 """
-Represents a nested risk objective with a discount factor. It computes a Markov policy
+A nested risk objective with a discount factor. It computes a Markov policy
 for a finite horizon and not a stationary policy. 
 """
-struct NestedFiniteH <: Markov
+struct NestedFiniteH <: MarkovDet
     γ::Float64
-    risk::Function
     T::Int
+    risk::Function
 
-    function NestedFiniteH(γ::Number, risk::Function, T::Integer)
+    function NestedFiniteH(γ::Number, T::Integer, risk::Function)
         one(γ) ≥ γ ≥ zero(γ) || error("Discount γ must be in [0,1]")
         T ≥ one(T) || error("Horizon must be positive")
-        # TODO: write a test to make sure that the horizon's definition is correct
-        new(γ, risk, T)
+        new(γ, T, risk)
     end
 end
 
 """
     qvalue(model, t, obj, s, a, v)
 
-Compute qvalue of the time unadjusted ERM risk measure.
+Compute the qvalue of a nested risk measure.
 """
-@inline function qvalue(model::MDP{S,A}, t::Integer, obj::NestedFiniteH,
-                        s::S, a::A, v) where {S,A} 
+function qvalue(model::MDP{S,A}, obj::NestedFiniteH, s::S, a::A, v) where {S,A} 
     val = 0.0
     # TODO: this allocates memory
     X = Vector{Float64}() # random variable
@@ -77,3 +78,4 @@ Compute qvalue of the time unadjusted ERM risk measure.
 end
 
 horizon(o::NestedFiniteH) = o.T
+discount(o::NestedFiniteH) = o.γ

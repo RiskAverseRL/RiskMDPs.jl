@@ -7,7 +7,7 @@
 Represents an ERM objective with a discount factor. It computes a Markov
 policy.
 """
-struct DiscountedERM <: Markov
+struct DiscountedERM <: MarkovDet
     γ::Float64  # discount factor
     β::Float64  # risk level
     T::Int      # horizon
@@ -49,7 +49,7 @@ horizon(o::DiscountedERM) = o.T
 Represents an ERM objective with a discount factor that is interpreted.
 as the probability of not-terminating. It computes a Markov policy.
 """
-struct IndefiniteERM <: Markov
+struct IndefiniteERM <: MarkovDet
     γ::Float64  # discount factor = probability of NOT terminating
     β::Float64  # risk level
     T::Int      # horizon
