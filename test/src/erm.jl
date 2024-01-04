@@ -10,8 +10,10 @@ prob = TestDomains["onestatepm"]
 function evaluate_sim(prob::Problem, π, β)
     # evaluation helper variables
     episodes = 100000
-    rweights::Vector{Float64} = prob.γ .^ (0:prob.horizon-1)     # reward weights
-    edist::Vector{Float64} = ones(episodes) / episodes # distribution over episodes
+    # reward weights
+    rweights::Vector{Float64} = prob.γ .^ (0:prob.horizon-1)     
+    # distribution over episodes
+    edist::Vector{Float64} = ones(episodes) / episodes 
     
     H = simulate(prob.model, π, prob.initstate, prob.horizon, episodes)
     returns = rweights' * H.rewards |> vec
@@ -29,8 +31,8 @@ end
         π = vp.policy
 
         ret_erm = evaluate_sim(prob, π, prob.β)
-        println("Expected return: ", vp.value[1][prob.initstate])
-        println("Simulated return: ", ret_erm)
+        println("Expected ERM return: ", v[1][prob.initstate])
+        println("Simulated ERM return: ", ret_erm)
 
         # ret_mean should be computed using the optimal policy
         #@test ret_cvar ≤ ret_mean + 0.1 * abs(ret_mean) + 0.1
