@@ -22,11 +22,11 @@ struct NestedInfiniteH <: StationaryDet
 end
 
 """
-    qvalue(model, obj::NestedInfiniteH, s, a, v)
+    qvalue(model, obj::NestedInfiniteH, t, s, a, v)
 
 Compute qvalue of a nested (or iterated) risk-averse objective.
 """
-function qvalue(model::MDP{S,A}, obj::NestedInfiniteH, s::S, a::A, v) where {S,A} 
+function qvalue(model::MDP{S,A}, obj::NestedInfiniteH, t::Integer, s::S, a::A, v) where {S,A} 
     val = 0.0
     # TODO: this allocates memory
     X = Vector{Float64}() # random variable
@@ -61,11 +61,11 @@ struct NestedFiniteH <: MarkovDet
 end
 
 """
-    qvalue(model, t, obj, s, a, v)
+    qvalue(model, obj, t, s, a, v)
 
 Compute the qvalue of a nested risk measure.
 """
-function qvalue(model::MDP{S,A}, obj::NestedFiniteH, s::S, a::A, v) where {S,A} 
+function qvalue(model::MDP{S,A}, obj::NestedFiniteH, t::Integer, s::S, a::A, v) where {S,A} 
     val = 0.0
     # TODO: this allocates memory
     X = Vector{Float64}() # random variable
