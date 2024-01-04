@@ -3,6 +3,7 @@ using MDPs
 using RiskMDPs
 using RiskMeasures
 using Distributions
+using Accessors
 include("make_domains.jl")
 prob = TestDomains["inventory_generic"]
 
