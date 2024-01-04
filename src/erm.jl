@@ -42,18 +42,23 @@ end
 horizon(o::DiscountedERM) = o.T
 
 # ---------------------------------------------------------------
-# ERM with termination discounting (indefinite horizon): finite horizon
+# ERM with the total reward criterion.
+# Needs a terminal state that is a sink and has a reward 0
+# Corresponds to an indefinite horizon
 # ---------------------------------------------------------------
 
 """
 Represents an ERM objective with a total reward objective over
 and infinite horizon. This formulation is roughly equivalent 
 to using a discount factor of 1.0
+
+This objective should be only used with the infinite horizon
+version of value iteration.
 """
 struct InfiniteERM <: StationaryDet
     β::Float64  # risk level
 
-    function InifiniteERM(β::Number)
+    function InfiniteERM(β::Number)
         β ≥ zero(β) || error("Risk β must be non-negative")
         new(β)
     end
