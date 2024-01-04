@@ -1,4 +1,5 @@
-
+import MDPs: qvalue
+    
 # ---------------------------------------------------------------
 # ERM with monetary discounting: finite horizon
 # ---------------------------------------------------------------
@@ -21,13 +22,12 @@ struct DiscountedERM <: MarkovDet
 end
 
 """
-    qvalue(model, γ, s, a, v)
+    qvalue(model, obj, s, a, v)
 
 Compute qvalue of the time-adjusted ERM risk measure. In
 this model the risk level decreses with the time step
 """
-@inline function qvalue(model::MDP{S,A}, t::Integer, obj::DiscountedERM,
-                        s::S, a::A, v) where {S,A} 
+function qvalue(model::MDP{S,A}, obj::DiscountedERM, t::Integer, s::S, a::A, v) where {S,A} 
     @assert t ≥ 1
     val = 0.0
     spr = getnext(model, s, a)
@@ -36,7 +36,7 @@ this model the risk level decreses with the time step
     X *=  obj.γ
     X += spr.rewards 
     # note that the risk level decreses with the time step
-    erm(X, spr.probabilities, obj.β * (obj.γ^(t-1))) :: Float64
+    ERM(X, spr.probabilities, obj.β * (obj.γ^(t-1))) :: Float64
 end
 
 horizon(o::DiscountedERM) = o.T
@@ -46,37 +46,33 @@ horizon(o::DiscountedERM) = o.T
 # ---------------------------------------------------------------
 
 """
-Represents an ERM objective with a discount factor that is interpreted.
-as the probability of not-terminating. It computes a Markov policy.
+Represents an ERM objective with a total reward objective over
+and infinite horizon. This formulation is roughly equivalent 
+to using a discount factor of 1.0
 """
-struct IndefiniteERM <: MarkovDet
-    γ::Float64  # discount factor = probability of NOT terminating
+struct InfiniteERM <: StationaryDet
     β::Float64  # risk level
-    T::Int      # horizon
 
-    function IndefiniteERM(γ::Number, β::Number, T::Integer)
-        one(γ) ≥ γ > zero(γ) || error("Discount γ must be in (0,1]")
+    function InifiniteERM(β::Number)
         β ≥ zero(β) || error("Risk β must be non-negative")
-        T ≥ one(T) || error("Horizon must be at least one")
-        new(γ, β, T)
+        new(β)
     end
 end
 
 """
-    qvalue(model, γ, s, a, v)
+    qvalue(model, obj, s, a, v)
 
-Compute qvalue of the time-adjusted ERM risk measure.
+Compute qvalue of the time-adjusted ERM risk measure. Note that this
+qvalue must be time-dependent.
 """
-@inline function qvalue(model::MDP{S,A}, t::Integer, obj::IndefiniteERM,
-                        s::S, a::A, v) where {S,A} 
-    @assert t ≥ 1
+function qvalue(model::MDP{S,A}, obj::InfiniteERM, s::S, a::A, v) where {S,A} 
     val = 0.0
     spr = getnext(model, s, a)
     # TODO: This still allocates, though less
     X = valuefunction.((model,), spr.states, (v,) )
-    X *=  obj.γ
     X += spr.rewards 
-    erm(X, spr.probabilities, obj.β) - (1/β) * log(γ) :: Float64
+    ERM(X, spr.probabilities, obj.β) :: Float64
 end
 
-horizon(o::IndefiniteERM) = o.T
+horizon(o::InfiniteERM) = o.T
+discount(o::InfiniteERM) = 1.0
