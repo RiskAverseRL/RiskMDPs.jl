@@ -37,7 +37,29 @@ pkg> develop RiskMDPs.jl
 
 <https://github.com/GunnarFarneback/LocalRegistry.jl>
 
-3. Register the MDP package
+Or follow these steps.
+
+- Create a bare git repository.
+```bash
+> mkdir <dir>
+> cd <dir>
+> git init --bare
+```
+
+- Create a registry in Julia as follows.
+
+```julia
+julia> using Pkg
+julia> Pkg.add("LocalRegistry")
+julia> using LocalRegistry
+julia> loc = create_registry("local")
+julia> cd("$loc")
+julia> run(`git push --set-upstream origin master`)
+```
+
+The registry should now be all set up.
+
+4. Register the MDP package
 
 ```julia
 julia> using LocalRegistry
