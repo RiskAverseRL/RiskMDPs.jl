@@ -37,7 +37,7 @@ pkg> develop RiskMDPs.jl
 
 <https://github.com/GunnarFarneback/LocalRegistry.jl>
 
-Or follow these steps.
+Or follow these steps. Replace "<dir>" by the appropriate directory in ALL commands below.
 
 - Create a bare git repository.
 ```bash
@@ -52,7 +52,7 @@ Or follow these steps.
 julia> using Pkg
 julia> Pkg.add("LocalRegistry")
 julia> using LocalRegistry
-julia> loc = create_registry("local")
+julia> loc = create_registry("local", "<dir>")
 julia> cd("$loc")
 julia> run(`git push --set-upstream origin master`)
 ```
