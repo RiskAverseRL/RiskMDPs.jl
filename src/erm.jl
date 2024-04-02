@@ -43,9 +43,9 @@ horizon(o::DiscountedERM) = o.T
 
 # ---------------------------------------------------------------
 # ERM with the total reward criterion.
+# ---------------------------------------------------------------
 # Needs a terminal state that is a sink and has a reward 0
 # Corresponds to an indefinite horizon
-# ---------------------------------------------------------------
 
 """
 Represents an ERM objective with a total reward objective over
@@ -81,3 +81,44 @@ end
 
 horizon(o::InfiniteERM) = o.T
 discount(o::InfiniteERM) = 1.0
+
+
+# ---------------------------------------------------------------
+# ERM policy iteration support
+# ---------------------------------------------------------------
+
+"""
+    mrp!(B_π, model, π, β)
+
+Save the transition matrix `B_π` for the 
+MDP `model` and policy `π`. The matrix is used to compute the exponential
+value function. The value `β` represents the risk and should be positive.  
+
+The terminal vector must be extracted from the transition matrix separately.
+
+Does not support duplicate entries in transition probabilities.
+"""
+function mrp_exp!(B_π::AbstractMatrix{<:Real}, model::TabMDP, π::AbstractVector{<:Integer}, β::Real)
+    S = state_count(model)
+    fill!(B_π, 0.)
+    for s ∈ 1:S
+        @assert !isterminal(model, s)
+        for (sn, p, r) ∈ transition(model, s, π[s])
+            B_π[s,sn] ≈ 0. || error("duplicated transition  ($s->$sn,...,$s->$sn)")
+            B_π[s,sn] += p * exp(-β * r)
+        end
+    end
+end
+
+"""
+    mrp_exp(model, π)
+
+Compute the transition matrix `B_π` and the terminal vector `b_π` for the 
+MDP `model` and policy `π` and risk `β`. See mrp! for more details. 
+"""
+function mrp_exp(model::TabMDP, π::AbstractVector{<:Integer}, β::Real)
+    S = state_count(model)
+    B_π = Matrix{Float64}(undef,S,S)
+    mrp_exp!(B_π, model, π, β)
+    B_π    
+end

@@ -9,6 +9,7 @@ export horizon, discount
 
 include("erm.jl")
 export DiscountedERM, IndefiniteERM
+export mrp_exp, mrp_exp!
 
 include("evar.jl")
 export DiscountedEVaR
