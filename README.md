@@ -17,7 +17,28 @@ Pkg.add(url="https://github.com/RiskAverseRL/RiskMDPs.jl.git")
 
 ### Developing the package
 
-This installation may have some problems with running tests. The more convoluted way, but one that should work is to do the following:
+
+Step 1. Download the packages
+
+```bash
+git clone git@github.com:RiskAverseRL/MDPs.jl.git
+git clone git@github.com:RiskAverseRL/RiskMDPs.jl.git
+```
+
+```julia
+using Pkg
+Pkg.develop("MDPs.jl")
+Pkg.develop("RiskMDPs.jl")
+```
+
+
+## Troubleshooting
+
+
+This installation may have some problems with running tests. 
+
+
+The more convoluted way, but one that should work is to do the following:
 
 1. Clone the repositories
 

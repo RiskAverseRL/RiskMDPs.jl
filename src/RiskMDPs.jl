@@ -8,8 +8,9 @@ export NestedFiniteH, NestedInfiniteH
 export horizon, discount
 
 include("erm.jl")
-export DiscountedERM, IndefiniteERM
-export mrp_exp, mrp_exp!
+export DiscountedERM, InfiniteERM
+export mrp_exp, mrp_exp!, policy_iteration
+export evf2vf, evf2vf!
 
 include("evar.jl")
 export DiscountedEVaR
