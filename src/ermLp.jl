@@ -96,7 +96,7 @@ function compute_B(model::TabMDP,β::Real)
 Linear program to compute erm, exponential value function w
 """
 # function erm_linear_program(model::TabMDP,optimizer,β)
-function erm_linear_program(model::TabMDP,B::Array)
+function erm_linear_program(model::TabMDP,B::Array,β::Real)
      lpm = Model(GLPK.Optimizer)
      #set_silent(lpm)
      state_number = state_count(model)
@@ -119,18 +119,23 @@ function erm_linear_program(model::TabMDP,B::Array)
                     bw += B[s,a,sn] *w[sn]
                 end
             end
-            @constraint(lpm, constraint,w[s] ≥ -B[s,a,state_number] + bw )
+            @constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw )
         end
     end
 
     optimize!(lpm)
-    value.(w)         
+    # output exponential value functions
+    print("\n Exponential value functions\n")
+    print(value.(w))  
+    #output regular value functions 
+    print("\n Regular value functions\n")
+    print(-1.0/β * broadcast(log,-value.(w) ) )     
 end
 
 
 function main()
 
-β = 0.01
+β = 0.1
 
 """
 Input: a csv file of a transient MDP, 1-based index
@@ -142,20 +147,9 @@ filepath = joinpath(dirname(pathof(RiskMDPs)),
                     
 model = load_mdp(File(filepath))
 B = compute_B(model,β)
-erm_linear_program(model,B)
+erm_linear_program(model,B,β)
 
 
-
-"""
-print("state count  \n")
-print(state_count(model))
-print("\n")
-
-
-print("size of B  \n")
-print(size(B))
-print("\n")
-"""
 
 
 end 
