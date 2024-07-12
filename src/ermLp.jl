@@ -9,13 +9,24 @@ using JuMP
 using CSV: File
 using RiskMDPs
 
-
-
 # ---------------------------------------------------------------
-# ERM with the total reward criterion.
+# ERM with the total reward criterion. 
 # ---------------------------------------------------------------
-# Needs a terminal state that is a sink and has a reward 0
-# Corresponds to an indefinite horizon
+# The last state is the sink state
+
+"""
+Represents an ERM objective with a total reward objective over
+an infinite horizon. This formulation is roughly equivalent 
+to using a discount factor of 1.0
+"""
+struct InfiniteERM <: StationaryDet
+    β::Float64  # risk level
+
+    function InfiniteERM(β::Number)
+        β ≥ zero(β) || error("Risk β must be non-negative")
+        new(β)
+    end
+end
 
 """
 load mdp from a csv file, 1-based index
@@ -50,15 +61,41 @@ function load_mdp(input)
         states[idstate] = IntState(actions)
         state_init[idstate] = true
     end
-    """
-    # create transitions to itself for each uninitialized state
-    # to simulate a terminal state
-    for s ∈ findall(.!state_init)
-        states[s] = IntState([IntAction([s], [1.], [0.])])
-    end
-    """
     IntMDP(states)
 end
+
+
+"""
+Compute B[s,s',a],  b_s^a, B_s^a, d_a(s) 
+"""
+# function compute_B(model::TabMDP,obj::InfiniteERM)
+function compute_B(model::TabMDP,β::Real)
+    # Initialize B[s,sn]
+
+    #Compute d_a(s)
+      
+       #calculate B[s,s',a]
+       # s can be a sink state
+       for s in 1: state_number
+          action_number = action_count(model,s)
+          for a in 1: action_number
+              snext = transition(model,s,a)
+              # Calculate b_s^a and B_s^a
+              for (sn, p, r) in snext
+                  # how to get d_a(s)???
+                  B[s,sn,a] += p * d_a(s) *exp(β * r) 
+                  # b_s^a is a special case of B[s,sn], and sn is considered as a sink state
+              end
+          end
+      end 
+  
+  end
+
+
+
+function main()
+
+β = 0.01
 
 """
 Input: a csv file of a transient MDP, 1-based index
@@ -71,19 +108,14 @@ model = load_mdp(File(filepath))
 # print("state count  ")
 # print(state_count(model))
 
-"""
-Represents an ERM objective with a total reward objective over
-an infinite horizon. This formulation is roughly equivalent 
-to using a discount factor of 1.0
-"""
-struct InfiniteERM <: StationaryDet
-    β::Float64  # risk level
+compute_B(model,β)
 
-    function InfiniteERM(β::Number)
-        β ≥ zero(β) || error("Risk β must be non-negative")
-        new(β)
-    end
-end
+
+
+
+end 
+
+main()
 
 """
     qvalue(model, obj, s, a, v)
@@ -105,4 +137,43 @@ end
 horizon(o::InfiniteERM) = o.T
 discount(o::InfiniteERM) = 1.0
 
+"""
+
+
+
+
+
+"""
+Use linear program to compute erm 
+
+"""
+
+"""
+function erm_linear_program(model::TabMDP,objective::InfiniteH,optimizer,β)
+     lpm = Model(optimizer)
+     set_silent(lpm)
+     state_number = state_count(model)
+     # exponential value function w
+     @variable(lpm,w[1:n])
+     @objetive(lpm,Min,sum(w[1:n]))
+    
+          
+         
+    # construct constraints
+    for s in 1: state_number
+        action_number = action_count(model,s)
+        for a in 1: action_number
+            snext = transition(model,s,a)
+            # Calculate b_s^a and B_s^a
+            for (sn, p, r) in snext        
+                @constraint(lpm, ineqconstraint,w[s] ≥ -B[s,e,a] + sum(B[s,sn,a] *w[sn]  for (sn, p, r) in snext ) )
+                # assume that the last state is the sink state
+                @constraint(m, eqconstraint1,w[state_number] == -1)
+            end
+        end
+    end
+
+    optimize!(lpm)
+    return value.(w)         
+end
 """
