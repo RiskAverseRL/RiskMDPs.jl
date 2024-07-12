@@ -5,6 +5,7 @@ using DataFramesMeta
 using Revise
 using MDPs
 using LinearAlgebra
+using GLPK
 using JuMP
 using CSV: File
 using RiskMDPs
@@ -69,28 +70,62 @@ end
 Compute B[s,s',a],  b_s^a, B_s^a, d_a(s) 
 """
 # function compute_B(model::TabMDP,obj::InfiniteERM)
+# assume a determinstic policy, that is, d_a(s) is always 1.
 function compute_B(model::TabMDP,β::Real)
-    # Initialize B[s,sn]
+    
+    states_size = state_count(model)
+    actions_size = maximum([action_count(model,s) for s in 1:states_size])
 
-    #Compute d_a(s)
-      
-       #calculate B[s,s',a]
-       # s can be a sink state
-       for s in 1: state_number
+    # Initialize B[s,a,sn]
+    B = zeros(Float64 , states_size, actions_size,states_size)
+     
+    #calculate B[s,s',a], including a sink state, assume a deterministic policy
+       for s in 1: states_size
           action_number = action_count(model,s)
           for a in 1: action_number
               snext = transition(model,s,a)
-              # Calculate b_s^a and B_s^a
               for (sn, p, r) in snext
-                  # how to get d_a(s)???
-                  B[s,sn,a] += p * d_a(s) *exp(β * r) 
-                  # b_s^a is a special case of B[s,sn], and sn is considered as a sink state
+                  B[s,a,sn] = p  * exp(-β * r) 
               end
           end
       end 
-  
+      B
   end
 
+"""
+Linear program to compute erm, exponential value function w
+"""
+# function erm_linear_program(model::TabMDP,optimizer,β)
+function erm_linear_program(model::TabMDP,B::Array)
+     lpm = Model(GLPK.Optimizer)
+     #set_silent(lpm)
+     state_number = state_count(model)
+     
+     @variable(lpm,w[1: state_number] )
+     @objective(lpm,Min,sum(w[1: state_number]))
+    
+     # assume that the last state is the sink state, constraint for the sink state
+     @constraint(lpm, constraint1,w[state_number] == -1)
+
+    # construct constraints for non-sink states, the sink state = state_number
+    for s in 1: state_number-1
+        action_number = action_count(model,s)
+        for a in 1: action_number
+            snext = transition(model,s,a)
+            # compute B_{s,̇̇}^a * \bm{w}
+            bw = 0 
+            for (sn, p, r) in snext
+                if sn != state_number # state_number is the sink state
+                    bw += B[s,a,sn] *w[sn]
+                end
+            end
+            @constraint(lpm, constraint,w[s] ≥ -B[s,a,state_number] + bw )
+        end
+    end
+
+    optimize!(lpm)
+    value.(w)         
+end
 
 
 function main()
@@ -103,77 +138,33 @@ Output:  the model passed in ERM function
 """
 filepath = joinpath(dirname(pathof(RiskMDPs)), 
                     "data", "ruin.csv_tra.csv")
+
                     
 model = load_mdp(File(filepath))
-# print("state count  ")
-# print(state_count(model))
-
-compute_B(model,β)
+B = compute_B(model,β)
+erm_linear_program(model,B)
 
 
+
+"""
+print("state count  \n")
+print(state_count(model))
+print("\n")
+
+
+print("size of B  \n")
+print(size(B))
+print("\n")
+"""
 
 
 end 
 
 main()
 
-"""
-    qvalue(model, obj, s, a, v)
-
-Compute qvalue of the time-adjusted ERM risk measure. Note that this
-qvalue must be time-dependent.
-"""
-
-"""
-function qvalue(model::MDP{S,A}, obj::InfiniteERM, s::S, a::A, v) where {S,A} 
-    val = 0.0
-    spr = getnext(model, s, a)
-    # TODO: This still allocates, though less
-    X = valuefunction.((model,), spr.states, (v,) )
-    X += spr.rewards 
-    ERM(X, spr.probabilities, obj.β) :: Float64
-end
-
-horizon(o::InfiniteERM) = o.T
-discount(o::InfiniteERM) = 1.0
-
-"""
 
 
 
 
 
-"""
-Use linear program to compute erm 
 
-"""
-
-"""
-function erm_linear_program(model::TabMDP,objective::InfiniteH,optimizer,β)
-     lpm = Model(optimizer)
-     set_silent(lpm)
-     state_number = state_count(model)
-     # exponential value function w
-     @variable(lpm,w[1:n])
-     @objetive(lpm,Min,sum(w[1:n]))
-    
-          
-         
-    # construct constraints
-    for s in 1: state_number
-        action_number = action_count(model,s)
-        for a in 1: action_number
-            snext = transition(model,s,a)
-            # Calculate b_s^a and B_s^a
-            for (sn, p, r) in snext        
-                @constraint(lpm, ineqconstraint,w[s] ≥ -B[s,e,a] + sum(B[s,sn,a] *w[sn]  for (sn, p, r) in snext ) )
-                # assume that the last state is the sink state
-                @constraint(m, eqconstraint1,w[state_number] == -1)
-            end
-        end
-    end
-
-    optimize!(lpm)
-    return value.(w)         
-end
-"""
