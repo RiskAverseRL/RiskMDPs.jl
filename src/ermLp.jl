@@ -89,6 +89,7 @@ function compute_B(model::TabMDP,β::Real)
               end
           end
       end 
+      #print(B)
       B
   end
 
@@ -97,8 +98,9 @@ Linear program to compute erm, exponential value function w
 """
 # function erm_linear_program(model::TabMDP,optimizer,β)
 function erm_linear_program(model::TabMDP,B::Array,β::Real)
+
      lpm = Model(GLPK.Optimizer)
-     #set_silent(lpm)
+     set_silent(lpm)
      state_number = state_count(model)
      
      @variable(lpm,w[1: state_number] )
@@ -124,18 +126,42 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
     end
 
     optimize!(lpm)
-    # output exponential value functions
-    print("\n Exponential value functions\n")
-    print(value.(w))  
-    #output regular value functions 
-    print("\n Regular value functions\n")
-    print(-1.0/β * broadcast(log,-value.(w) ) )     
+
+    #print("\n check if the model has a dual solution\n")
+    #print(has_duals(lpm))
+
+    # Exponential value functions
+    w = value.(w) 
+
+    #Regular value functions 
+    v = -1.0/β * broadcast(log,-value.(w) )
+    
+    # Initialize a policy and generate an optimal policy
+    π = zeros(Int64 , state_number)
+    for s in 1: state_number
+        vmax = -Inf
+        optimal_action = 2
+        action_number = action_count(model,s)
+        for a in 1: action_number
+            snext = transition(model,s,a)
+            temp = 0 
+            for (sn, p, r) in snext
+                    temp += p * v[sn]
+            end
+            if temp > vmax
+                vmax = temp
+                optimal_action = a
+            end
+        end
+        π[s] = optimal_action
+    end
+   (w=w,v=v,π=π)
 end
 
 
 function main()
 
-β = 0.1
+β = 0.05
 
 """
 Input: a csv file of a transient MDP, 1-based index
@@ -147,9 +173,7 @@ filepath = joinpath(dirname(pathof(RiskMDPs)),
                     
 model = load_mdp(File(filepath))
 B = compute_B(model,β)
-erm_linear_program(model,B,β)
-
-
+w,v,π = erm_linear_program(model,B,β)
 
 
 end 
