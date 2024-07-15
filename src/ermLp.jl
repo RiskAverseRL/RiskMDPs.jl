@@ -155,13 +155,37 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
         end
         π[s] = optimal_action
     end
-   (w=w,v=v,π=π)
+    #check if there is an infeasible solution
+    #println("termination status : ", termination_status(lpm))
+    status = termination_status(lpm)
+   (w=w,v=v,π=π,status)
 end
 
 
+function evar_discretize2(α::Real, δ::Real, ΔR::Number)
+    zero(α) < α < one(α) || error("α must be in (0,1)")
+    zero(δ) < δ  || error("δ must be > 0")
+
+    # set the smallest and largest values
+    β1 = 8*δ / ΔR^2
+    βK = -log(1-α) / δ
+
+    βs = Vector{Float64}([])
+    β = β1
+    while β < βK
+        append!(βs, β)
+        β *= log(1-α) / (β*δ + log(1-α))
+    end
+    
+    βs
+end
+
 function main()
 
-β = 0.05
+β = 0.05 # risk level of ERM
+α = 0.8 # risk level of EVaR
+δ = 0.1
+ΔR =1 # ??
 
 """
 Input: a csv file of a transient MDP, 1-based index
@@ -172,8 +196,14 @@ filepath = joinpath(dirname(pathof(RiskMDPs)),
 
                     
 model = load_mdp(File(filepath))
-B = compute_B(model,β)
-w,v,π = erm_linear_program(model,B,β)
+βs =  evar_discretize2(α, δ, ΔR)
+
+for β in βs
+ B = compute_B(model,β)
+ #termination_status is used to check if linear solution is feasible
+ w,v,π,termination_status = erm_linear_program(model,B,β)
+ 
+end
 
 
 end 
