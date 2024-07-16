@@ -94,7 +94,7 @@ function compute_B(model::TabMDP,β::Real)
   end
 
 """
-Linear program to compute erm, exponential value function w
+Linear program to compute erm, exponential value function w, deterministic policy
 """
 # function erm_linear_program(model::TabMDP,optimizer,β)
 function erm_linear_program(model::TabMDP,B::Array,β::Real)
@@ -158,6 +158,7 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
     #check if there is an infeasible solution
     #println("termination status : ", termination_status(lpm))
     status = termination_status(lpm)
+    # print(π)
    (w=w,v=v,π=π,status)
 end
 
@@ -180,12 +181,17 @@ function evar_discretize2(α::Real, δ::Real, ΔR::Number)
     βs
 end
 
+# Compute ERM value
+function compute_erm(value_function :: Vector, initial_state_pro :: Vector)
+    return sum(value_function.*initial_state_pro)
+end
+
 function main()
 
 β = 0.05 # risk level of ERM
 α = 0.8 # risk level of EVaR
 δ = 0.1
-ΔR =1 # ??
+ΔR =1 # how to set ΔR ??
 
 """
 Input: a csv file of a transient MDP, 1-based index
@@ -198,13 +204,29 @@ filepath = joinpath(dirname(pathof(RiskMDPs)),
 model = load_mdp(File(filepath))
 βs =  evar_discretize2(α, δ, ΔR)
 
+state_number = state_count(model)
+# where is the csv file for the initial state distribution???
+intial_state_pro = Vector{Float64}()
+for s in 1:state_number-1
+    push!(intial_state_pro,1.0/(state_number-1)) # start with a non-sink state
+end
+push!(intial_state_pro,0) # add the sink state with the initial probability 0
+
+max_h =-Inf
+optimal_policy = []
+
 for β in βs
  B = compute_B(model,β)
- #termination_status is used to check if linear solution is feasible
- w,v,π,termination_status = erm_linear_program(model,B,β)
- 
+ w,v,π,status = erm_linear_program(model,B,β)
+ temp = compute_erm(v,intial_state_pro) + log(α)/β
+ if temp  > max_h
+    max_h = temp 
+    optimal_policy = π
+ end
 end
 
+print("\n max Evar value is  ", max_h  )
+print("\n the optimal policy is  ", optimal_policy)
 
 end 
 
