@@ -187,51 +187,50 @@ function compute_erm(value_function :: Vector, initial_state_pro :: Vector)
 end
 
 function main()
+    β = 0.05 # risk level of ERM
+    α = 0.8 # risk level of EVaR
+    δ = 0.1
+    ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
 
-β = 0.05 # risk level of ERM
-α = 0.8 # risk level of EVaR
-δ = 0.1
-ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
+    """
+    Input: a csv file of a transient MDP, 1-based index
+    Output:  the model passed in ERM function
+    """
+    filepath = joinpath(dirname(pathof(RiskMDPs)), 
+                        "data", "ruin.csv_tra.csv")
 
-"""
-Input: a csv file of a transient MDP, 1-based index
-Output:  the model passed in ERM function
-"""
-filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                    "data", "ruin.csv_tra.csv")
 
-                    
-model = load_mdp(File(filepath))
-βs =  evar_discretize2(α, δ, ΔR)
+    model = load_mdp(File(filepath))
+    βs =  evar_discretize2(α, δ, ΔR)
 
-state_number = state_count(model)
-# where is the csv file for the initial state distribution???
-intial_state_pro = Vector{Float64}()
-for s in 1:state_number-1
-    push!(intial_state_pro,1.0/(state_number-1)) # start with a non-sink state
-end
-push!(intial_state_pro,0) # add the sink state with the initial probability 0
+    state_number = state_count(model)
+    # where is the csv file for the initial state distribution???
+    intial_state_pro = Vector{Float64}()
+    for s in 1:state_number-1
+        push!(intial_state_pro,1.0/(state_number-1)) # start with a non-sink state
+    end
+    push!(intial_state_pro,0) # add the sink state with the initial probability 0
 
-max_h =-Inf
-optimal_policy = []
-optimal_beta = 0.0
+    max_h =-Inf
+    optimal_policy = []
+    optimal_beta = 0.0
 
-for β in βs
- B = compute_B(model,β)
- w,v,π,status = erm_linear_program(model,B,β)
- temp = compute_erm(v,intial_state_pro) + log(α)/β
- if temp  > max_h
-    max_h = temp 
-    optimal_policy = π
-    optimal_beta = β
- end
-end
+    for β in βs
+    B = compute_B(model,β)
+    w,v,π,status = erm_linear_program(model,B,β)
+    temp = compute_erm(v,intial_state_pro) + log(α)/β
+    if temp  > max_h
+        max_h = temp 
+        optimal_policy = π
+        optimal_beta = β
+    end
+    end
 
-print("\n max EVaR value is  ", max_h  )
-print("\n the optimal policy is  ", optimal_policy)
-print("\n the optimal beta value is  ", optimal_beta)
-opt_erm = max_h - log(α)/β
-print("\n the optimal erm value is  ",opt_erm)
+    print("\n max EVaR value is  ", max_h  )
+    print("\n the optimal policy is  ", optimal_policy)
+    print("\n the optimal beta value is  ", optimal_beta)
+    opt_erm = max_h - log(α)/β
+    print("\n the optimal erm value is  ",opt_erm)
 
 end 
 

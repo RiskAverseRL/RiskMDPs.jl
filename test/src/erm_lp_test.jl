@@ -10,6 +10,7 @@ using DataFramesMeta
 using Revise
 using LinearAlgebra
 using CSV: File
+using Infiltrator
 #include("make_domains.jl")
 
 
@@ -51,21 +52,28 @@ function load_mdp(input)
 end
 
 
+####
+
 # evaluates the policy by simulation
 function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     # evaluation helper variables
     episodes = 1000
-    horizon::Integer = 300
+    horizon = 500
     # reward weights
     rweights::Vector{Float64} = 1 .^ (0:horizon-1)     
     # distribution over episodes
     edist::Vector{Float64} = ones(episodes) / episodes 
     
     # for the uniform initial state distribution, call each non-sink state equal times
-    inistate::Int64= 1
-    
-    # H = simulate(model, π, prob.initstate, prob.horizon, episodes)
+    inistate::Int64 = 10
     H = simulate(model, π, inistate, horizon, episodes)
+
+    initial = ones(state_count(model))
+    initial[end] = 0
+    initial /= sum(initial)
+    
+    H = simulate(model, π, initial, horizon, episodes)
+    #@infiltrate
     rets = rweights' * H.rewards |> vec
     ret_erm = ERM(rets, ones(length(rets)) / length(rets), β)
     println("Simulated ERM return: ", ret_erm)
@@ -75,6 +83,8 @@ end
     #the optimal policy is  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     # the optimal beta value is  0.8
     # the optimal erm value is  7.89311405169851
+
+###
 
 function main()
 
