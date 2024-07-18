@@ -137,7 +137,7 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
     v = -1.0/β * broadcast(log,-value.(w) )
     
     # Initialize a policy and generate an optimal policy
-    π = zeros(Int64 , state_number)
+    π = zeros(Int , state_number)
     for s in 1: state_number
         vmax = -Inf
         optimal_action = 2
@@ -191,7 +191,7 @@ function main()
 β = 0.05 # risk level of ERM
 α = 0.8 # risk level of EVaR
 δ = 0.1
-ΔR =1 # how to set ΔR ??
+ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
 
 """
 Input: a csv file of a transient MDP, 1-based index
@@ -214,6 +214,7 @@ push!(intial_state_pro,0) # add the sink state with the initial probability 0
 
 max_h =-Inf
 optimal_policy = []
+optimal_beta = 0.0
 
 for β in βs
  B = compute_B(model,β)
@@ -222,11 +223,15 @@ for β in βs
  if temp  > max_h
     max_h = temp 
     optimal_policy = π
+    optimal_beta = β
  end
 end
 
 print("\n max Evar value is  ", max_h  )
 print("\n the optimal policy is  ", optimal_policy)
+print("\n the optimal beta value is  ", optimal_beta)
+opt_erm = max_h - log(α)/β
+print("\n the optimal erm value is  ",opt_erm)
 
 end 
 
