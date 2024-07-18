@@ -227,7 +227,7 @@ for β in βs
  end
 end
 
-print("\n max Evar value is  ", max_h  )
+print("\n max EVaR value is  ", max_h  )
 print("\n the optimal policy is  ", optimal_policy)
 print("\n the optimal beta value is  ", optimal_beta)
 opt_erm = max_h - log(α)/β
