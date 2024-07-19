@@ -8,7 +8,9 @@ using DataFrames: DataFrame
 using DataFramesMeta
 using LinearAlgebra
 using CSV: File
-using Infiltrator
+#include("make_domains.jl")
+
+
 
 """
 load a transient mdp from a csv file, 1-based index
@@ -47,11 +49,13 @@ function load_mdp(input)
 end
 
 
+####
+
 # evaluates the policy by simulation
 function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     # evaluation helper variables
     episodes = 1000
-    horizon::Integer = 200
+    horizon::Integer = 300
     # reward weights
     rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
     
@@ -59,19 +63,17 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     # edist::Vector{Float64} = ones(episodes) / episodes 
     
     # for the uniform initial state distribution, call each non-sink state equal times
-    erm_ave = 0.0
-    states_size = state_count(model)
-    for inistate in 1: states_size -1
-        H = simulate(model, π, inistate, horizon, episodes)
-        #@infiltrate
-        rets = rweights' * H.rewards |> vec
-        ret_erm = ERM(rets, ones(length(rets)) / length(rets), β)
-        erm_ave += ret_erm * 1.0 /(states_size -1) 
-    end
-
-    println("Simulated ERM return: ", erm_ave)
+    inistate::Int64= 1
+    
+    # H = simulate(model, π, prob.initstate, prob.horizon, episodes)
+    H = simulate(model, π, inistate, horizon, episodes)
+    rets = rweights' * H.rewards |> vec
+    ret_erm = ERM(rets, ones(length(rets)) / length(rets), β)
+    println("Simulated ERM return: ", ret_erm)
 end
 
+
+###
 
 function main()
 
