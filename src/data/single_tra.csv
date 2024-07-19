@@ -1,0 +1,4 @@
+idstatefrom,idaction,idstateto,probability,reward
+1,1,1,0.7,0.15
+1,1,2,0.3,0
+2,1,2,1,0
