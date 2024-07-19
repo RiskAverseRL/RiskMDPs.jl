@@ -63,13 +63,15 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     # edist::Vector{Float64} = ones(episodes) / episodes 
     
     # for the uniform initial state distribution, call each non-sink state equal times
-    inistate::Int64= 1
-    
-    # H = simulate(model, π, prob.initstate, prob.horizon, episodes)
-    H = simulate(model, π, inistate, horizon, episodes)
-    rets = rweights' * H.rewards |> vec
-    ret_erm = ERM(rets, ones(length(rets)) / length(rets), β)
-    println("Simulated ERM return: ", ret_erm)
+    erm_ave = 0.0 
+    states_number = state_count(model)
+    for inistate in 1: (states_number -1)
+        H = simulate(model, π, inistate, horizon, episodes)
+        rets = rweights' * H.rewards |> vec
+        ret_erm = ERM(rets, ones(length(rets)) / length(rets), β)
+        erm_ave += ret_erm * 1.0/(states_number -1)
+    end
+    println("Simulated ERM return: ", erm_ave)
 end
 
 
