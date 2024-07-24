@@ -90,11 +90,14 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
      state_number = state_count(model)
      @variable(lpm,w[1: state_number] )
      @objective(lpm,Min,sum(w[1: state_number]))
-    
+     
+     # @constraint(lpm, constraint1,w[state_number] == -1)
+     constraints = Dict{Tuple{Int64, Int64}, Any}()
      # constraint for the sink state
-     @constraint(lpm, constraint1,w[state_number] == -1)
+     constraints[(state_number,1)] =@constraint(lpm, constraint1,w[state_number] == -1)
 
     #constraints for non-sink states and all available actions
+    
     for s in 1: state_number-1
         action_number = action_count(model,s)
         for a in 1: action_number
@@ -107,7 +110,8 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
                 end
             end
             # constraint for a non-sink state and an action
-            @constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw )
+            # @constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw )
+            constraints[(s,a)] = @constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw )
         end
     end
 
@@ -122,23 +126,58 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
     # Initialize a policy and generate an optimal policy
     π = zeros(Int , state_number)
 
+    # Printing the optimal dual variables 
+    # Check active constraints to obtain the optimal policy
+    println("Dual Variables:")
     for s in 1: state_number
-        vmax = -Inf
-        optimal_action = 2
         action_number = action_count(model,s)
         for a in 1: action_number
-            snext = transition(model,s,a)
-            temp = 0 
-            for (sn, p, r) in snext
-                    temp += p * v[sn]
-            end
-            if temp > vmax
-                vmax = temp
-                optimal_action = a
-            end
+        println("dual($s,$a)  = ", JuMP.shadow_price(constraints[(s,a)]))
+        if abs(JuMP.shadow_price(constraints[(s,a)] ) )> 0.0000001
+            π[s] = a
         end
-        π[s] = optimal_action
+        end
     end
+
+
+
+    # # Use exponential value function to compute the optimal policy
+    # for s in 1: state_number
+    #     vmax = Inf
+    #     optimal_action = 2
+    #     action_number = action_count(model,s)
+    #     for a in 1: action_number
+    #         snext = transition(model,s,a)
+    #         temp = 0 
+    #         for (sn, p, r) in snext
+    #                 temp += p * w[sn]
+    #         end
+    #         if temp <vmax
+    #             vmax = temp
+    #             optimal_action = a
+    #         end
+    #     end
+    #     π[s] = optimal_action
+    # end
+
+    # # Use regular erm value functions to compute optimal policy
+    # for s in 1: state_number
+    #     vmax = -Inf
+    #     optimal_action = 2
+    #     action_number = action_count(model,s)
+    #     for a in 1: action_number
+    #         snext = transition(model,s,a)
+    #         temp = 0 
+    #         for (sn, p, r) in snext
+    #                 temp += p * v[sn]
+    #         end
+    #         if temp > vmax
+    #             vmax = temp
+    #             optimal_action = a
+    #         end
+    #     end
+    #     π[s] = optimal_action
+    # end
     #status is used to check if there is an infeasible solution
     status = termination_status(lpm)
    (w=w,v=v,π=π,status)
@@ -152,6 +191,8 @@ function evar_discretize_beta(α::Real, δ::Real, ΔR::Number)
     # set the smallest and largest values
     β1 = 8*δ / ΔR^2
     βK = -log(α) / δ
+    #print("\n beta 1,  ",β1 )
+    #print("\n beta k  ",βK)
 
     βs = Vector{Float64}([])
     β = β1
@@ -159,7 +200,9 @@ function evar_discretize_beta(α::Real, δ::Real, ΔR::Number)
         append!(βs, β)
         β *= log(α) / (β*δ + log(α))
     end
+    #print("beta s is,  ",βs)
     βs
+
 end
 
 # Compute a single ERM value using the vector of regular value function and initial distribution
@@ -170,18 +213,21 @@ end
 function main()
 
 α = 0.8 # risk level of EVaR
-δ = 0.1
+δ = 0.05
 ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
 
 """
 Input: a csv file of a transient MDP, 1-based index
 Output:  the model passed in ERM function
 """
+
 #filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   # "data", "ruin.csv_tra.csv")
+                   #"data", "output_gambler.csv_tra.csv")
 filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                    "data", "single_tra.csv")
-                                    
+                   "data", "single_tra.csv")
+# filepath = joinpath(dirname(pathof(RiskMDPs)), 
+#                     "data", "ruin_combined.csv_tra.csv ")
+                                 
 model = load_mdp(File(filepath))
 βs =  evar_discretize_beta(α, δ, ΔR)
 
@@ -196,7 +242,8 @@ push!(initial_state_pro,0) # add the sink state with the initial probability 0
 
 max_h =-Inf
 optimal_policy = []
-optimal_beta = 0.0
+optimal_beta = -1
+optimal_v = []
 
 βs = [0.8]
 for β in βs
@@ -207,14 +254,16 @@ for β in βs
        max_h = evar_temp 
        optimal_policy = π
        optimal_beta = β
+       optimal_v = v
     end
    end
 
 opt_erm = max_h - log(α)/optimal_beta
-#print("\n max EVaR value is  ", max_h  )
+print("\n max EVaR value is  ", max_h  )
 print("\n the optimal policy is  ", optimal_policy)
 print("\n the optimal beta value is  ", optimal_beta)
 print("\n the optimal erm value is  ",opt_erm)
+print("\n vector of regular erm value is  ",optimal_v)
 
 end 
 
