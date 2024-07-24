@@ -1,5 +1,6 @@
 using MDPs
 import Base
+using Revise
 using RiskMDPs
 using RiskMeasures
 using Distributions
@@ -8,6 +9,7 @@ using DataFrames: DataFrame
 using DataFramesMeta
 using LinearAlgebra
 using CSV: File
+using Infiltrator
 #include("make_domains.jl")
 
 
@@ -54,7 +56,7 @@ end
 # evaluates the policy by simulation
 function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     # evaluation helper variables
-    episodes = 1000
+    episodes = 2000
     horizon::Integer = 300
     # reward weights
     rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
@@ -64,13 +66,17 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     
     # for the uniform initial state distribution, call each non-sink state equal times
     erm_ave = 0.0 
+    v_test =[]
     states_number = state_count(model)
     for inistate in 1: (states_number -1)
         H = simulate(model, π, inistate, horizon, episodes)
+        #@infiltrate
         rets = rweights' * H.rewards |> vec
         ret_erm = ERM(rets, ones(length(rets)) / length(rets), β)
+        push!(v_test,ret_erm)
         erm_ave += ret_erm * 1.0/(states_number -1)
     end
+    #println("simulated v values are:   ",v_test)
     println("Simulated ERM return: ", erm_ave)
 end
 
@@ -79,13 +85,16 @@ end
 
 function main()
 
-   # π ::Vector{Int} =[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    π ::Vector{Int} =[1, 1] # For the single state example
-    β = 0.8
-    #filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                    #"data", "ruin.csv_tra.csv")
+    π ::Vector{Int} =  [1, 2, 3, 3, 3, 6, 5, 4, 3, 2, 1, 1]
+    #π ::Vector{Int} =[1, 1] # For the single state example
+    β = 0.225608
+
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                    "data", "single_tra.csv")
+                    "data", "g10.csv")
+                    
+    # filepath = joinpath(dirname(pathof(RiskMDPs)), 
+    #                 "data", "single_tra.csv")
+
     model = load_mdp(File(filepath))
     evaluate_sim(model, π, β)
 

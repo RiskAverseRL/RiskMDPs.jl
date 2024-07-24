@@ -9,6 +9,7 @@ using GLPK
 using JuMP
 using CSV: File
 using RiskMDPs
+using PlotlyJS
 
 # ---------------------------------------------------------------
 # ERM with the total reward criterion. an infinite horizon. This formulation is roughly equivalent 
@@ -128,56 +129,17 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
 
     # Printing the optimal dual variables 
     # Check active constraints to obtain the optimal policy
-    println("Dual Variables:")
+    # println("Dual Variables:")
     for s in 1: state_number
         action_number = action_count(model,s)
         for a in 1: action_number
-        println("dual($s,$a)  = ", JuMP.shadow_price(constraints[(s,a)]))
-        if abs(JuMP.shadow_price(constraints[(s,a)] ) )> 0.0000001
-            π[s] = a
-        end
+            #println("dual($s,$a)  = ", JuMP.shadow_price(constraints[(s,a)]))
+            if abs(JuMP.shadow_price(constraints[(s,a)] ) )> 0.0000001
+                π[s] = a
+            end
         end
     end
 
-
-
-    # # Use exponential value function to compute the optimal policy
-    # for s in 1: state_number
-    #     vmax = Inf
-    #     optimal_action = 2
-    #     action_number = action_count(model,s)
-    #     for a in 1: action_number
-    #         snext = transition(model,s,a)
-    #         temp = 0 
-    #         for (sn, p, r) in snext
-    #                 temp += p * w[sn]
-    #         end
-    #         if temp <vmax
-    #             vmax = temp
-    #             optimal_action = a
-    #         end
-    #     end
-    #     π[s] = optimal_action
-    # end
-
-    # # Use regular erm value functions to compute optimal policy
-    # for s in 1: state_number
-    #     vmax = -Inf
-    #     optimal_action = 2
-    #     action_number = action_count(model,s)
-    #     for a in 1: action_number
-    #         snext = transition(model,s,a)
-    #         temp = 0 
-    #         for (sn, p, r) in snext
-    #                 temp += p * v[sn]
-    #         end
-    #         if temp > vmax
-    #             vmax = temp
-    #             optimal_action = a
-    #         end
-    #     end
-    #     π[s] = optimal_action
-    # end
     #status is used to check if there is an infeasible solution
     status = termination_status(lpm)
    (w=w,v=v,π=π,status)
@@ -191,8 +153,8 @@ function evar_discretize_beta(α::Real, δ::Real, ΔR::Number)
     # set the smallest and largest values
     β1 = 8*δ / ΔR^2
     βK = -log(α) / δ
-    #print("\n beta 1,  ",β1 )
-    #print("\n beta k  ",βK)
+    print("\n beta 1,  ",β1 )
+    print("\n beta k  ",βK)
 
     βs = Vector{Float64}([])
     β = β1
@@ -212,52 +174,61 @@ end
 
 function main()
 
-α = 0.8 # risk level of EVaR
-δ = 0.05
-ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
+    α = 0.9 # risk level of EVaR
+    δ = 0.01
+    ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
 
-"""
-Input: a csv file of a transient MDP, 1-based index
-Output:  the model passed in ERM function
-"""
-
-#filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   #"data", "output_gambler.csv_tra.csv")
-filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "single_tra.csv")
-# filepath = joinpath(dirname(pathof(RiskMDPs)), 
-#                     "data", "ruin_combined.csv_tra.csv ")
+    """
+    Input: a csv file of a transient MDP, 1-based index
+    Output:  the model passed in ERM function
+     """
+    filepath = joinpath(dirname(pathof(RiskMDPs)), 
+                   "data", "g10.csv")
+    # filepath = joinpath(dirname(pathof(RiskMDPs)), 
+    #                    "data", "single_tra.csv")
                                  
-model = load_mdp(File(filepath))
-βs =  evar_discretize_beta(α, δ, ΔR)
+    model = load_mdp(File(filepath))
+    βs =  evar_discretize_beta(α, δ, ΔR)
 
-# Uniform initial state distribution
-state_number = state_count(model)
-initial_state_pro = Vector{Float64}()
-for index in 1:(state_number-1)
-    push!(initial_state_pro,1.0/(state_number-1)) # start with a non-sink state
-end
-push!(initial_state_pro,0) # add the sink state with the initial probability 0
-
-
-max_h =-Inf
-optimal_policy = []
-optimal_beta = -1
-optimal_v = []
-
-βs = [0.8]
-for β in βs
-    B = compute_B(model,β)
-    w,v,π,status = erm_linear_program(model,B,β)
-    evar_temp = compute_erm(v,initial_state_pro) + log(α)/β
-    if evar_temp  > max_h
-       max_h = evar_temp 
-       optimal_policy = π
-       optimal_beta = β
-       optimal_v = v
+    # Uniform initial state distribution
+    state_number = state_count(model)
+    initial_state_pro = Vector{Float64}()
+    for index in 1:(state_number-1)
+        push!(initial_state_pro,1.0/(state_number-1)) # start with a non-sink state
     end
+    push!(initial_state_pro,0) # add the sink state with the initial probability 0
+
+
+    max_h =-Inf
+    optimal_policy = []
+    optimal_beta = -1
+    optimal_v = []
+    hvalues = []
+
+ 
+    for β in βs
+        B = compute_B(model,β)
+        w,v,π,status = erm_linear_program(model,B,β)
+        h = compute_erm(v,initial_state_pro) + log(α)/β
+        push!(hvalues,h)
+        if h  > max_h
+            max_h = h
+            optimal_policy = π
+            optimal_beta = β
+            optimal_v = v
+        end
    end
 
+   # df = DataFrame(βs,hvalues)
+   trace1 = scatter(x=βs, y=hvalues, name="α = α ",
+                         line=attr(color="firebrick", width=2), mode="lines+markers")
+  layout = Layout(title="α = $α",
+                         xaxis_title="β",
+                         yaxis_title="h(β)")
+      
+    p= plot([trace1 ], layout)
+    savefig(p,"a$α.png")
+   
 opt_erm = max_h - log(α)/optimal_beta
 print("\n max EVaR value is  ", max_h  )
 print("\n the optimal policy is  ", optimal_policy)
