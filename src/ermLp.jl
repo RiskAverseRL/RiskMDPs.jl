@@ -153,8 +153,8 @@ function evar_discretize_beta(α::Real, δ::Real, ΔR::Number)
     # set the smallest and largest values
     β1 = 8*δ / ΔR^2
     βK = -log(α) / δ
-    print("\n beta 1,  ",β1 )
-    print("\n beta k  ",βK)
+    #print("\n beta 1,  ",β1 )
+    #print("\n beta k  ",βK)
 
     βs = Vector{Float64}([])
     β = β1
@@ -172,9 +172,107 @@ function compute_erm(value_function :: Vector, initial_state_pro :: Vector)
     return sum(value_function.*initial_state_pro)
 end
 
+# Given different α values, x axis: β; y axis: h(β)
+function hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
+
+    # Initialize arrays to save h(β), β given different α values
+    n = length(alpha_array)
+    beta_array = Vector{Vector{Float64}}(undef,n )
+    h_array = Vector{Vector{Float64}}(undef,n)
+    for index in 1:n
+        beta_array[index] = []
+        h_array[index] =[] 
+    end
+
+    i = 0
+    for α in alpha_array
+        βs =  evar_discretize_beta(α, δ, ΔR)
+        # max_h =-Inf
+        # optimal_policy = []
+        # optimal_beta = -1
+        # optimal_v = []
+        i += 1
+        for β in βs
+            B = compute_B(model,β)
+            w,v,π,status = erm_linear_program(model,B,β)
+            h = compute_erm(v,initial_state_pro) + log(α)/β
+        
+            push!(h_array[i],h)
+            push!(beta_array[i],β)
+        end
+    end
+
+    # Extract data for β in the range[0.1,3.0]
+    beta_array_t = Vector{Vector{Float64}}(undef,n )
+    h_array_t = Vector{Vector{Float64}}(undef,n)
+    for index in 1:n
+        beta_array_t[index] = []
+        h_array_t[index] =[] 
+    end
+
+    for i in 1:n
+        for (index, β) in pairs(beta_array[i])
+            if  β <2
+                push!(beta_array_t[i],β)
+                push!(h_array_t[i],h_array[i][index])
+            end
+        end
+    end
+
+    trace =  Vector{Any}(undef, n)
+    colors = ["teal","blue","black","red","fuchsia"]
+    for i in 1:n
+        trace[i] = scatter(x=beta_array_t[i], y=h_array_t[i], name="α = $(alpha_array[i])",
+        line=attr(color=colors[i] , width=1), mode="lines",background_color="white")
+    end
+
+    layout = Layout(xaxis_title="β",yaxis_title="h(β)")
+   
+    p= plot([trace[1],trace[2],trace[3],trace[4]], layout)
+    savefig(p,"hbeta.png")
+
+end
+
+
+# Compute a single ERM value using the vector of regular value function and initial distribution
+function compute_erm(value_function :: Vector, initial_state_pro :: Vector)
+    return sum(value_function.*initial_state_pro)
+end
+
+# Compute the optimal policy for different α values
+function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
+
+    for α in alpha_array
+        βs =  evar_discretize_beta(α, δ, ΔR)
+        max_h =-Inf
+        optimal_policy = []
+        optimal_beta = -1
+        optimal_v = []
+
+        for β in βs
+            B = compute_B(model,β)
+            w,v,π,status = erm_linear_program(model,B,β)
+            h = compute_erm(v,initial_state_pro) + log(α)/β
+
+            if h  > max_h
+                max_h = h
+                optimal_policy = π
+                optimal_beta = β
+                optimal_v = v
+            end
+        end
+        println("\n α value is: ", α)
+        opt_erm = max_h - log(α)/optimal_beta
+        println(" max EVaR value is  ", max_h  )
+        println(" the optimal policy is  ", optimal_policy)
+        println(" the optimal beta value is  ", optimal_beta)
+        println("the optimal erm value is  ",opt_erm)
+        #println(" vector of regular erm value is  ",optimal_v)
+    end
+end
+
 function main()
 
-    α = 0.9 # risk level of EVaR
     δ = 0.01
     ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
 
@@ -188,8 +286,7 @@ function main()
     #                    "data", "single_tra.csv")
                                  
     model = load_mdp(File(filepath))
-    βs =  evar_discretize_beta(α, δ, ΔR)
-
+    
     # Uniform initial state distribution
     state_number = state_count(model)
     initial_state_pro = Vector{Float64}()
@@ -197,45 +294,15 @@ function main()
         push!(initial_state_pro,1.0/(state_number-1)) # start with a non-sink state
     end
     push!(initial_state_pro,0) # add the sink state with the initial probability 0
+    
+    # risk level of EVaR
+    alpha_array = [0.75,0.85,0.9,0.95]
+    # plot h(β) vs. β given different α values
+    hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
 
-
-    max_h =-Inf
-    optimal_policy = []
-    optimal_beta = -1
-    optimal_v = []
-    hvalues = []
-
- 
-    for β in βs
-        B = compute_B(model,β)
-        w,v,π,status = erm_linear_program(model,B,β)
-        h = compute_erm(v,initial_state_pro) + log(α)/β
-        push!(hvalues,h)
-        if h  > max_h
-            max_h = h
-            optimal_policy = π
-            optimal_beta = β
-            optimal_v = v
-        end
-   end
-
-   # df = DataFrame(βs,hvalues)
-   trace1 = scatter(x=βs, y=hvalues, name="α = α ",
-                         line=attr(color="firebrick", width=2), mode="lines+markers")
-  layout = Layout(title="α = $α",
-                         xaxis_title="β",
-                         yaxis_title="h(β)")
-      
-    p= plot([trace1 ], layout)
-    savefig(p,"a$α.png")
-   
-opt_erm = max_h - log(α)/optimal_beta
-print("\n max EVaR value is  ", max_h  )
-print("\n the optimal policy is  ", optimal_policy)
-print("\n the optimal beta value is  ", optimal_beta)
-print("\n the optimal erm value is  ",opt_erm)
-print("\n vector of regular erm value is  ",optimal_v)
-
+    #Compute the optimal policy 
+    compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
+  
 end 
 
 main()
