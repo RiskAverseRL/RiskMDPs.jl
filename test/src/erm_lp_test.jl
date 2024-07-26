@@ -10,7 +10,8 @@ using DataFramesMeta
 using LinearAlgebra
 using CSV: File
 using Infiltrator
-#include("make_domains.jl")
+using Plots
+
 
 
 
@@ -56,8 +57,8 @@ end
 # evaluates the policy by simulation
 function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     # evaluation helper variables
-    episodes = 2000
-    horizon::Integer = 300
+    episodes = 500
+    horizon::Integer = 25
     # reward weights
     rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
     
@@ -68,35 +69,78 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     erm_ave = 0.0 
     v_test =[]
     states_number = state_count(model)
+    returns = []
     for inistate in 1: (states_number -1)
         H = simulate(model, π, inistate, horizon, episodes)
         #@infiltrate
+
+        # rets is a vector of the total rewards, size of rets = number of episodes
         rets = rweights' * H.rewards |> vec
+        
+        # returns is an array of returns for all episodes
+        for r in rets
+            push!(returns,r)
+        end
+        
         ret_erm = ERM(rets, ones(length(rets)) / length(rets), β)
-        push!(v_test,ret_erm)
         erm_ave += ret_erm * 1.0/(states_number -1)
     end
-    #println("simulated v values are:   ",v_test)
+   
     println("Simulated ERM return: ", erm_ave)
+    returns
 end
 
 
-###
+function plot_histogram(returns, α)
+
+    returns = Int.(returns)
+    returns_size = length(returns)
+    max_value = maximum(returns)
+    #println("maiximal value is: ", max_value)
+    counts = zeros(max_value + 1)
+    
+    # value is in the range [0,max_value]. 
+    # value is increased by 1 to satisfy 1_based index
+    for value in returns
+        value +=1 
+        counts[value] += 1   
+    end
+
+    x = [] 
+    for i in 1: max_value+1 
+        push!(x,i-1)
+    end
+     
+    # relative frequency
+    relative_fre = []
+    for i in 1: (max_value + 1)
+        push!(relative_fre,  counts[i]*1.0/returns_size)
+    end
+
+    p = bar(x,relative_fre,legend = false)
+    ylabel!("Relative frequency")
+    xlabel!("Final capital")
+    title!("α = $(α)")
+    savefig(p,"hisgram$α.png")
+
+end
 
 function main()
 
-    π ::Vector{Int} =  [1, 2, 3, 3, 3, 6, 5, 4, 3, 2, 1, 1]
+    α = 0.75
+    π ::Vector{Int} = [1, 2, 2, 3, 2, 1, 1]
     #π ::Vector{Int} =[1, 1] # For the single state example
-    β = 0.225608
+    β = 0.21215086765946684
 
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                    "data", "g10.csv")
+                    "data", "g5.csv")
                     
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
     #                 "data", "single_tra.csv")
 
     model = load_mdp(File(filepath))
-    evaluate_sim(model, π, β)
+    returns = evaluate_sim(model, π, β)
+    plot_histogram(returns, α )
 
 end
 

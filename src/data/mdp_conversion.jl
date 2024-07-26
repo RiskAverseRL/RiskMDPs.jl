@@ -149,11 +149,11 @@ end
 function main()
         #epsilon is the probability of transienting to the sink state. 
         # epsilon = 1 - gamma, gamma is the discount factor in a discounted MDP
-        epsilon = 0.2
+        epsilon = 0.1
         
         # p: the probability of winning one game
-        p =0.7
-        initial_capital = 10
+        p =0.8
+        initial_capital = 4
 
         # Generate a 0_based dataframe from Gambler domain, 
         model = Gambler.Ruin(p, initial_capital)

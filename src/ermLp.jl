@@ -187,10 +187,6 @@ function hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
     i = 0
     for α in alpha_array
         βs =  evar_discretize_beta(α, δ, ΔR)
-        # max_h =-Inf
-        # optimal_policy = []
-        # optimal_beta = -1
-        # optimal_v = []
         i += 1
         for β in βs
             B = compute_B(model,β)
@@ -281,7 +277,7 @@ function main()
     Output:  the model passed in ERM function
      """
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "g10.csv")
+                   "data", "g5.csv")
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
     #                    "data", "single_tra.csv")
                                  
@@ -296,6 +292,7 @@ function main()
     push!(initial_state_pro,0) # add the sink state with the initial probability 0
     
     # risk level of EVaR
+    #alpha_array = [0.15,0.3,0.45,0.6]
     alpha_array = [0.75,0.85,0.9,0.95]
     # plot h(β) vs. β given different α values
     hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
