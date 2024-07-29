@@ -6,7 +6,7 @@ using Revise
 using MDPs
 using LinearAlgebra
 using GLPK
-using JuMP
+using JuMP, HiGHS
 using CSV: File
 using RiskMDPs
 using PlotlyJS
@@ -85,10 +85,16 @@ Assume that the last state is the sink state
 """
 function erm_linear_program(model::TabMDP,B::Array,β::Real)
 
-     lpm = Model(GLPK.Optimizer)
+     #lpm = Model(GLPK.Optimizer)
+     lpm = Model(HiGHS.Optimizer)
      set_silent(lpm)
 
      state_number = state_count(model)
+     w = zeros(state_number)
+     v = zeros(state_number)
+     π = zeros(Int , state_number)
+
+
      @variable(lpm,w[1: state_number] )
      @objective(lpm,Min,sum(w[1: state_number]))
      
@@ -117,32 +123,36 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
     end
 
     optimize!(lpm)
+    #println("termination status  ",termination_status(lpm))
 
-    # Exponential value functions
-    w = value.(w) 
+    # Check if the linear program has a feasible solution
+    if termination_status(lpm) ==  DUAL_INFEASIBLE
+        return  (status = "infeasible", w=w,v=v,π=π)
+    else
 
-    #Regular value functions 
-    v = -1.0/β * log.(-value.(w) )
+         # Exponential value functions
+         w = value.(w) 
 
-    # Initialize a policy and generate an optimal policy
-    π = zeros(Int , state_number)
+         #Regular value functions 
+         v = -1.0/β * log.(-value.(w) )
 
-    # Printing the optimal dual variables 
-    # Check active constraints to obtain the optimal policy
-    # println("Dual Variables:")
-    for s in 1: state_number
-        action_number = action_count(model,s)
-        for a in 1: action_number
-            #println("dual($s,$a)  = ", JuMP.shadow_price(constraints[(s,a)]))
-            if abs(JuMP.shadow_price(constraints[(s,a)] ) )> 0.0000001
-                π[s] = a
+         # Initialize a policy and generate an optimal policy
+         π = zeros(Int , state_number)
+
+         # Printing the optimal dual variables 
+         # Check active constraints to obtain the optimal policy
+         # println("Dual Variables:")
+        for s in 1: state_number
+            action_number = action_count(model,s)
+            for a in 1: action_number
+                #println("dual($s,$a)  = ", JuMP.shadow_price(constraints[(s,a)]))
+                if abs(JuMP.shadow_price(constraints[(s,a)] ) )> 0.0000001
+                   π[s] = a
+                end
             end
         end
-    end
-
-    #status is used to check if there is an infeasible solution
-    status = termination_status(lpm)
-   (w=w,v=v,π=π,status)
+        return (status ="feasible", w=w,v=v,π=π)
+    end 
 end
 
 
@@ -190,7 +200,13 @@ function hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
         i += 1
         for β in βs
             B = compute_B(model,β)
-            w,v,π,status = erm_linear_program(model,B,β)
+            status,w,v,π = erm_linear_program(model,B,β)
+
+            # compute the optimal policy for β that has only feasible solution
+            if cmp(status,"infeasible") ==0 
+                break
+            end
+
             h = compute_erm(v,initial_state_pro) + log(α)/β
         
             push!(h_array[i],h)
@@ -224,7 +240,8 @@ function hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
 
     layout = Layout(xaxis_title="β",yaxis_title="h(β)")
    
-    p= plot([trace[1],trace[2],trace[3],trace[4]], layout)
+    #p= plot([trace[1],trace[2],trace[3],trace[4]], layout)
+    p= plot([trace[1]], layout)
     savefig(p,"hbeta.png")
 
 end
@@ -247,7 +264,12 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
 
         for β in βs
             B = compute_B(model,β)
-            w,v,π,status = erm_linear_program(model,B,β)
+            status,w,v,π = erm_linear_program(model,B,β)
+            
+            # compute the optimal policy for β that has only feasible solution
+            if cmp(status,"infeasible") ==0 
+                break
+            end
             h = compute_erm(v,initial_state_pro) + log(α)/β
 
             if h  > max_h
@@ -293,7 +315,8 @@ function main()
     
     # risk level of EVaR
     #alpha_array = [0.15,0.3,0.45,0.6]
-    alpha_array = [0.75,0.85,0.9,0.95]
+    # alpha_array = [0.75,0.85,0.9,0.95]
+    alpha_array = [0.85]
     # plot h(β) vs. β given different α values
     hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
 
