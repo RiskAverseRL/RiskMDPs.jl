@@ -9,7 +9,8 @@ using GLPK
 using JuMP, HiGHS
 using CSV: File
 using RiskMDPs
-using PlotlyJS
+#using PlotlyJS
+using Plots
 
 # ---------------------------------------------------------------
 # ERM with the total reward criterion. an infinite horizon. This formulation is roughly equivalent 
@@ -77,7 +78,7 @@ function compute_B(model::TabMDP,β::Real)
         end
     end 
     B
-  end
+end
 
 """
 Linear program to compute erm exponential value function w and the optimal policy
@@ -97,16 +98,13 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
 
      @variable(lpm,w[1: state_number] )
      @objective(lpm,Min,sum(w[1: state_number]))
-     
-     # @constraint(lpm, constraint1,w[state_number] == -1)
-     constraints = Dict{Tuple{Int64, Int64}, Any}()
-     # constraint for the sink state
-     constraints[(state_number,1)] =@constraint(lpm, constraint1,w[state_number] == -1)
+
+    constraints::Vector{Vector{ConstraintRef}} = []
 
     #constraints for non-sink states and all available actions
-    
     for s in 1: state_number-1
         action_number = action_count(model,s)
+        c_s::Vector{ConstraintRef} = []
         for a in 1: action_number
             snext = transition(model,s,a)
             # bw is used to save  B_{s,̇̇}^a * \bm{w} in the linear program formulation
@@ -117,13 +115,16 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
                 end
             end
             # constraint for a non-sink state and an action
-            # @constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw )
-            constraints[(s,a)] = @constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw )
-        end
-    end
+            #constraints[(s,a)] = @constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw )
+            push!(c_s,@constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw ))
 
+        end
+        push!(constraints, c_s)
+    end
+    # constraints[state_number,1] =@constraint(lpm, constraint1,w[state_number] == -1)
+    # The constraint for the sink state
+    push!(constraints, [@constraint(lpm, w[state_number] == -1)])
     optimize!(lpm)
-    #println("termination status  ",termination_status(lpm))
 
     # Check if the linear program has a feasible solution
     if termination_status(lpm) ==  DUAL_INFEASIBLE
@@ -139,18 +140,10 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
          # Initialize a policy and generate an optimal policy
          π = zeros(Int , state_number)
 
-         # Printing the optimal dual variables 
+        
          # Check active constraints to obtain the optimal policy
-         # println("Dual Variables:")
-        for s in 1: state_number
-            action_number = action_count(model,s)
-            for a in 1: action_number
-                #println("dual($s,$a)  = ", JuMP.shadow_price(constraints[(s,a)]))
-                if abs(JuMP.shadow_price(constraints[(s,a)] ) )> 0.0000001
-                   π[s] = a
-                end
-            end
-        end
+         π = map(x->argmax(dual.(x)), constraints)
+
         return (status ="feasible", w=w,v=v,π=π)
     end 
 end
@@ -163,8 +156,8 @@ function evar_discretize_beta(α::Real, δ::Real, ΔR::Number)
     # set the smallest and largest values
     β1 = 8*δ / ΔR^2
     βK = -log(α) / δ
-    #print("\n beta 1,  ",β1 )
-    #print("\n beta k  ",βK)
+    println("beta 1,  ",β1 )
+    println("beta k  ",βK)
 
     βs = Vector{Float64}([])
     β = β1
@@ -183,7 +176,7 @@ function compute_erm(value_function :: Vector, initial_state_pro :: Vector)
 end
 
 # Given different α values, x axis: β; y axis: h(β)
-function hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
+function h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
 
     # Initialize arrays to save h(β), β given different α values
     n = length(alpha_array)
@@ -240,8 +233,8 @@ function hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
 
     layout = Layout(xaxis_title="β",yaxis_title="h(β)")
    
-    #p= plot([trace[1],trace[2],trace[3],trace[4]], layout)
-    p= plot([trace[1]], layout)
+    p= plot([trace[1],trace[2],trace[3],trace[4]], layout)
+    #p= plot([trace[1]], layout)
     savefig(p,"hbeta.png")
 
 end
@@ -254,6 +247,11 @@ end
 
 # Compute the optimal policy for different α values
 function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
+    
+    #Save erm values and beta values for plotting unbounded erm
+    # in transient mdp 
+    erm_values = []
+    beta_values =[]
 
     for α in alpha_array
         βs =  evar_discretize_beta(α, δ, ΔR)
@@ -261,6 +259,7 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
         optimal_policy = []
         optimal_beta = -1
         optimal_v = []
+
 
         for β in βs
             B = compute_B(model,β)
@@ -270,7 +269,13 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
             if cmp(status,"infeasible") ==0 
                 break
             end
-            h = compute_erm(v,initial_state_pro) + log(α)/β
+
+            erm = compute_erm(v,initial_state_pro)
+            push!(erm_values,erm)
+            push!(beta_values,β)
+
+            # Compute h(β) 
+            h = erm + log(α)/β
 
             if h  > max_h
                 max_h = h
@@ -285,23 +290,64 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
         println(" the optimal policy is  ", optimal_policy)
         println(" the optimal beta value is  ", optimal_beta)
         println("the optimal erm value is  ",opt_erm)
-        #println(" vector of regular erm value is  ",optimal_v)
+        println(" vector of regular erm value is  ",optimal_v)
     end
+    (erm_values,beta_values)
 end
+
+# plot erm values in a discounted MDP and a transient MDP
+ function  erms_dis_trc(erm_trc, betas, erm_discounted)
+    
+    erm_dis = fill(erm_discounted,size(betas))
+    # println(size(betas))
+    # println(size(erm_trc))
+    infeasible_x = []
+    infeasible_y =[]
+    last_beta = last(betas)
+    last_trc = last(erm_trc)-0.5
+    push!(infeasible_x, last_beta)
+    push!(infeasible_y,last_trc)
+
+    beta_d = deepcopy(betas)
+
+    x_additonal = range(last_beta, stop=last_beta+0.2, length=200)
+
+    for i in x_additonal
+        # infeasible solution
+        push!(infeasible_x,i)
+        push!(infeasible_y,last_trc)
+
+        # erm values for β greater than the threshold value
+        push!(beta_d,i)
+        push!(erm_dis,erm_discounted)
+    end
+
+    
+    p=plot(betas,erm_trc,label="trc", linewidth=3)
+    plot!(beta_d,erm_dis,label="discounted", linewidth=3)
+    plot!(infeasible_x,infeasible_y,label="infeasible",linewidth=3, ls=:dot)
+    xlims!(0,last(infeasible_x))
+    ylims!(-10,-1)
+    xlabel!("β")
+    ylabel!("ERM value function")
+   
+    Plots.savefig(p,"erm_dis_trc.png")
+
+ end
 
 function main()
 
-    δ = 0.01
+    δ = 0.005
     ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
 
     """
     Input: a csv file of a transient MDP, 1-based index
     Output:  the model passed in ERM function
      """
-    filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "g5.csv")
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
-    #                    "data", "single_tra.csv")
+    #                "data", "g5.csv")
+    filepath = joinpath(dirname(pathof(RiskMDPs)), 
+                       "data", "single_tra.csv")
                                  
     model = load_mdp(File(filepath))
     
@@ -315,13 +361,19 @@ function main()
     
     # risk level of EVaR
     #alpha_array = [0.15,0.3,0.45,0.6]
-    # alpha_array = [0.75,0.85,0.9,0.95]
+    #alpha_array = [0.75,0.85,0.9,0.95]
     alpha_array = [0.85]
+
     # plot h(β) vs. β given different α values
-    hbetaplot(alpha_array,initial_state_pro, model,δ, ΔR)
+    #h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
 
     #Compute the optimal policy 
-    compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
+    erm_trc, betas =compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
+
+   # plot erm values in a discounted MDP and a transient MDP
+   #  erm_discounted = r/(1-γ)
+   erm_discounted = -2
+   erms_dis_trc(erm_trc, betas, erm_discounted)
   
 end 
 
