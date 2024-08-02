@@ -121,7 +121,7 @@ function plot_histogram(returns, α)
     ylabel!("Relative frequency")
     xlabel!("Final capital")
     title!("α = $(α)")
-    savefig(p,"hisgram$α.png")
+    savefig(p,"hisgram$α.pdf")
 
 end
 

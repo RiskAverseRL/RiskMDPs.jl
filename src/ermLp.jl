@@ -232,7 +232,7 @@ function h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
     ylims!(-2.5,2.5)
     xlabel!("β")
     ylabel!("h(β)")
-    savefig(p,"beta_h.png")
+    savefig(p,"beta_h.pdf")
 
 end
 
@@ -328,7 +328,7 @@ end
     ylims!(-10,-1)
     xlabel!("β")
     ylabel!("ERM value function")
-    savefig(p,"erm_dis_trc.png")
+    savefig(p,"erm_dis_trc.pdf")
 
  end
 
@@ -363,7 +363,7 @@ function main()
     alpha_array = [0.85,0.7]
 
     # plot h(β) vs. β given different α values
-    h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
+    #h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
 
     #Compute the optimal policy 
     erm_trc, betas =compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
@@ -371,7 +371,7 @@ function main()
    # plot erm values in a discounted MDP and a transient MDP
    #  erm_discounted = r/(1-γ)
     erm_discounted = -2
-    erms_dis_trc(erm_trc, betas, erm_discounted)
+    #erms_dis_trc(erm_trc, betas, erm_discounted)
   
 end 
 
