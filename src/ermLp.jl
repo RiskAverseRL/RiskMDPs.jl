@@ -1,15 +1,9 @@
-import MDPs: qvalue
-import Base
 using DataFrames: DataFrame
 using DataFramesMeta
-using Revise
 using MDPs
-using LinearAlgebra
-using GLPK
 using JuMP, HiGHS
 using CSV: File
 using RiskMDPs
-#using PlotlyJS
 using Plots
 
 # ---------------------------------------------------------------
@@ -73,7 +67,7 @@ function compute_B(model::TabMDP,β::Real)
         for a in 1: action_number
             snext = transition(model,s,a)
             for (sn, p, r) in snext
-                B[s,a,sn] = p  * exp(-β * r) 
+                B[s,a,sn] += p  * exp(-β * r) 
             end
         end
     end 
@@ -115,13 +109,12 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
                 end
             end
             # constraint for a non-sink state and an action
-            #constraints[(s,a)] = @constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw )
             push!(c_s,@constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw ))
 
         end
         push!(constraints, c_s)
     end
-    # constraints[state_number,1] =@constraint(lpm, constraint1,w[state_number] == -1)
+
     # The constraint for the sink state
     push!(constraints, [@constraint(lpm, w[state_number] == -1)])
     optimize!(lpm)
@@ -156,8 +149,8 @@ function evar_discretize_beta(α::Real, δ::Real, ΔR::Number)
     # set the smallest and largest values
     β1 = 8*δ / ΔR^2
     βK = -log(α) / δ
-    println("beta 1,  ",β1 )
-    println("beta k  ",βK)
+    println("minimal β =  ",β1 )
+    println("maximal β =  ",βK)
 
     βs = Vector{Float64}([])
     β = β1
@@ -165,7 +158,6 @@ function evar_discretize_beta(α::Real, δ::Real, ΔR::Number)
         append!(βs, β)
         β *= log(α) / (β*δ + log(α))
     end
-    #print("beta s is,  ",βs)
     βs
 
 end
@@ -176,13 +168,18 @@ function compute_erm(value_function :: Vector, initial_state_pro :: Vector)
 end
 
 # Given different α values, x axis: β; y axis: h(β)
+# using PlotlyJS
 function h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
 
     # Initialize arrays to save h(β), β given different α values
-    n = length(alpha_array)
+    n = size(alpha_array)
+    
     beta_array = Vector{Vector{Float64}}(undef,n )
     h_array = Vector{Vector{Float64}}(undef,n)
-    for index in 1:n
+
+    d =[1,2]
+    #for index in 1:
+    for index in d
         beta_array[index] = []
         h_array[index] =[] 
     end
@@ -202,47 +199,47 @@ function h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
 
             h = compute_erm(v,initial_state_pro) + log(α)/β
         
-            push!(h_array[i],h)
-            push!(beta_array[i],β)
+            append!(h_array[i],h)
+            append!(beta_array[i],β)
         end
     end
 
     # Extract data for β in the range[0.1,3.0]
     beta_array_t = Vector{Vector{Float64}}(undef,n )
     h_array_t = Vector{Vector{Float64}}(undef,n)
-    for index in 1:n
+    for index in d
         beta_array_t[index] = []
         h_array_t[index] =[] 
     end
 
-    for i in 1:n
+    for i in d
         for (index, β) in pairs(beta_array[i])
             if  β <2
-                push!(beta_array_t[i],β)
-                push!(h_array_t[i],h_array[i][index])
+                append!(beta_array_t[i],β)
+                append!(h_array_t[i],h_array[i][index])
             end
         end
     end
 
-    trace =  Vector{Any}(undef, n)
-    colors = ["teal","blue","black","red","fuchsia"]
-    for i in 1:n
-        trace[i] = scatter(x=beta_array_t[i], y=h_array_t[i], name="α = $(alpha_array[i])",
-        line=attr(color=colors[i] , width=1), mode="lines",background_color="white")
+    p=plot(beta_array_t[1],h_array_t[1],label="α = $(alpha_array[1])", linewidth=3)
+    
+    d1 =deleteat!(d,1)
+    for i in d1
+        plot!(beta_array_t[i],h_array_t[i],label="α = $(alpha_array[i])", linewidth=3)
     end
 
-    layout = Layout(xaxis_title="β",yaxis_title="h(β)")
-   
-    p= plot([trace[1],trace[2],trace[3],trace[4]], layout)
-    #p= plot([trace[1]], layout)
-    savefig(p,"hbeta.png")
+    xlims!(0,2.2)
+    ylims!(-2.5,2.5)
+    xlabel!("β")
+    ylabel!("h(β)")
+    savefig(p,"beta_h.png")
 
 end
 
 
 # Compute a single ERM value using the vector of regular value function and initial distribution
 function compute_erm(value_function :: Vector, initial_state_pro :: Vector)
-    return sum(value_function.*initial_state_pro)
+    return sum(value_function .* initial_state_pro)
 end
 
 # Compute the optimal policy for different α values
@@ -270,56 +267,57 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
                 break
             end
 
+            # Calculate erm value. result is one number
             erm = compute_erm(v,initial_state_pro)
-            push!(erm_values,erm)
-            push!(beta_values,β)
+
+            # Save erm values and β values for plots
+            append!(erm_values,erm)
+            append!(beta_values,β)
 
             # Compute h(β) 
             h = erm + log(α)/β
 
             if h  > max_h
                 max_h = h
-                optimal_policy = π
+                optimal_policy = deepcopy(π)
                 optimal_beta = β
-                optimal_v = v
+                optimal_v = deepcopy(v)
             end
         end
-        println("\n α value is: ", α)
+
         opt_erm = max_h - log(α)/optimal_beta
-        println(" max EVaR value is  ", max_h  )
-        println(" the optimal policy is  ", optimal_policy)
-        println(" the optimal beta value is  ", optimal_beta)
-        println("the optimal erm value is  ",opt_erm)
+
+        println("α = ", α)
+        println(" EVaR =  ", max_h  )
+        println(" π* =  ", optimal_policy)
+        println(" β* =  ", optimal_beta)
+        println("ERM* = ",opt_erm)
         println(" vector of regular erm value is  ",optimal_v)
     end
     (erm_values,beta_values)
 end
 
-# plot erm values in a discounted MDP and a transient MDP
+# plot erm values for a discounted MDP and a transient MDP, single state
  function  erms_dis_trc(erm_trc, betas, erm_discounted)
     
     erm_dis = fill(erm_discounted,size(betas))
-    # println(size(betas))
-    # println(size(erm_trc))
     infeasible_x = []
     infeasible_y =[]
     last_beta = last(betas)
-    last_trc = last(erm_trc)-0.5
-    push!(infeasible_x, last_beta)
-    push!(infeasible_y,last_trc)
+    # Assigne a number to the erm value of infeasible solutions
+    trc_infeasible = last(erm_trc)-0.5 
 
     beta_d = deepcopy(betas)
 
+    #generate data set for infeasible solutions
     x_additonal = range(last_beta, stop=last_beta+0.2, length=200)
-
     for i in x_additonal
-        # infeasible solution
-        push!(infeasible_x,i)
-        push!(infeasible_y,last_trc)
+        append!(infeasible_x,i)
+        append!(infeasible_y,trc_infeasible)
 
         # erm values for β greater than the threshold value
-        push!(beta_d,i)
-        push!(erm_dis,erm_discounted)
+        append!(beta_d,i)
+        append!(erm_dis,erm_discounted)
     end
 
     
@@ -330,24 +328,23 @@ end
     ylims!(-10,-1)
     xlabel!("β")
     ylabel!("ERM value function")
-   
-    Plots.savefig(p,"erm_dis_trc.png")
+    savefig(p,"erm_dis_trc.png")
 
  end
 
 function main()
 
-    δ = 0.005
+    δ = 0.01
     ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
 
     """
     Input: a csv file of a transient MDP, 1-based index
     Output:  the model passed in ERM function
      """
-    # filepath = joinpath(dirname(pathof(RiskMDPs)), 
-    #                "data", "g5.csv")
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                       "data", "single_tra.csv")
+                   "data", "g5.csv")
+    # filepath = joinpath(dirname(pathof(RiskMDPs)), 
+    #                    "data", "single_tra.csv")
                                  
     model = load_mdp(File(filepath))
     
@@ -355,25 +352,26 @@ function main()
     state_number = state_count(model)
     initial_state_pro = Vector{Float64}()
     for index in 1:(state_number-1)
-        push!(initial_state_pro,1.0/(state_number-1)) # start with a non-sink state
+        append!(initial_state_pro,1.0/(state_number-1)) # start with a non-sink state
     end
-    push!(initial_state_pro,0) # add the sink state with the initial probability 0
+    append!(initial_state_pro,0) # add the sink state with the initial probability 0
+
     
     # risk level of EVaR
     #alpha_array = [0.15,0.3,0.45,0.6]
     #alpha_array = [0.75,0.85,0.9,0.95]
-    alpha_array = [0.85]
+    alpha_array = [0.85,0.7]
 
     # plot h(β) vs. β given different α values
-    #h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
+    h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
 
     #Compute the optimal policy 
     erm_trc, betas =compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
 
    # plot erm values in a discounted MDP and a transient MDP
    #  erm_discounted = r/(1-γ)
-   erm_discounted = -2
-   erms_dis_trc(erm_trc, betas, erm_discounted)
+    erm_discounted = -2
+    erms_dis_trc(erm_trc, betas, erm_discounted)
   
 end 
 

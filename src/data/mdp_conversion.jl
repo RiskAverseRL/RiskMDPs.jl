@@ -1,8 +1,4 @@
 
-using Pkg
-Pkg.add("CSV")
-Pkg.add("DataFrames")
-Pkg.add("DataFramesMeta")
 using CSV
 using DataFrames, DataFramesMeta
 using CSV: File
@@ -153,7 +149,7 @@ function main()
         
         # p: the probability of winning one game
         p =0.8
-        initial_capital = 4
+        initial_capital = 5
 
         # Generate a 0_based dataframe from Gambler domain, 
         model = Gambler.Ruin(p, initial_capital)

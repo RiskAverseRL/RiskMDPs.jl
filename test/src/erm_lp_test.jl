@@ -58,7 +58,7 @@ end
 function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     # evaluation helper variables
     episodes = 500
-    horizon::Integer = 25
+    horizon::Integer = 100
     # reward weights
     rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
     
@@ -90,7 +90,7 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     returns
 end
 
-
+# Only for integer return, gambler domain
 function plot_histogram(returns, α)
 
     returns = Int.(returns)
@@ -127,20 +127,25 @@ end
 
 function main()
 
-    α = 0.75
-    π ::Vector{Int} = [1, 2, 2, 3, 2, 1, 1]
+    α = 0.85
+
+    # The optimal policy
+    π ::Vector{Int} =   [1, 2, 2, 2, 3, 3, 5, 4, 3, 2, 1, 1]
     #π ::Vector{Int} =[1, 1] # For the single state example
-    β = 0.21215086765946684
+
+    β = 0.08
 
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                    "data", "g5.csv")
+                    "data", "g10.csv")
                     
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
     #                 "data", "single_tra.csv")
 
     model = load_mdp(File(filepath))
     returns = evaluate_sim(model, π, β)
-    plot_histogram(returns, α )
+
+    # Only for integer return, gambler domain
+    # plot_histogram(returns, α )
 
 end
 
