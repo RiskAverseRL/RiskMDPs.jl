@@ -105,7 +105,7 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
             bw = 0 
             for (sn, p, r) in snext
                 if sn != state_number # state_number is the sink state
-                    bw += B[s,a,sn] *w[sn]
+                    bw += B[s,a,sn] * w[sn]
                 end
             end
             # constraint for a non-sink state and an action
@@ -131,11 +131,11 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
          v = -1.0/β * log.(-value.(w) )
 
          # Initialize a policy and generate an optimal policy
-         π = zeros(Int , state_number)
+         #π = zeros(Int , state_number)
 
-        
          # Check active constraints to obtain the optimal policy
          π = map(x->argmax(dual.(x)), constraints)
+         # map(x->println(dual.(x)), constraints)
 
         return (status ="feasible", w=w,v=v,π=π)
     end 
@@ -252,6 +252,7 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
 
     for α in alpha_array
         βs =  evar_discretize_beta(α, δ, ΔR)
+        βs = [0.01,0.15,0.3]
         max_h =-Inf
         optimal_policy = []
         optimal_beta = -1
@@ -261,6 +262,8 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
         for β in βs
             B = compute_B(model,β)
             status,w,v,π = erm_linear_program(model,B,β)
+            #println("B is ", B)
+            #println("π is ", π)
             
             # compute the optimal policy for β that has only feasible solution
             if cmp(status,"infeasible") ==0 
@@ -287,11 +290,11 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
 
         opt_erm = max_h - log(α)/optimal_beta
 
-        println("α = ", α)
-        println(" EVaR =  ", max_h  )
+        # println("α = ", α)
+        # println(" EVaR =  ", max_h  )
         println(" π* =  ", optimal_policy)
         println(" β* =  ", optimal_beta)
-        println("ERM* = ",opt_erm)
+        #println("ERM* = ",opt_erm)
         println(" vector of regular erm value is  ",optimal_v)
     end
     (erm_values,beta_values)
@@ -336,13 +339,14 @@ function main()
 
     δ = 0.01
     ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
+    π = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 
     """
     Input: a csv file of a transient MDP, 1-based index
     Output:  the model passed in ERM function
      """
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "g5.csv")
+                   "data", "g10neg.csv")
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
     #                    "data", "single_tra.csv")
                                  
@@ -359,8 +363,8 @@ function main()
     
     # risk level of EVaR
     #alpha_array = [0.15,0.3,0.45,0.6]
-    #alpha_array = [0.75,0.85,0.9,0.95]
-    alpha_array = [0.85,0.7]
+    #alpha_array = [0.7,0.9]
+    alpha_array = [0.8]
 
     # plot h(β) vs. β given different α values
     #h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
@@ -372,6 +376,18 @@ function main()
    #  erm_discounted = r/(1-γ)
     erm_discounted = -2
     #erms_dis_trc(erm_trc, betas, erm_discounted)
+
+    
+    # Value iteration
+    v,_,res = value_iteration(model, InfiniteH(0.999); iterations = 100)
+    println("---------------------------")
+    println("expectation, value functions: ",v)
+    println("residual: ",res)
+
+    # #Policy iteration
+    # policy,value,_ = policy_iteration(model, 0.999)
+    # println("policy iteration, policy = ", policy)
+    # println("policy iteration, value = ",value)
   
 end 
 
