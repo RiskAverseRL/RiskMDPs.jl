@@ -252,7 +252,7 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
 
     for α in alpha_array
         βs =  evar_discretize_beta(α, δ, ΔR)
-        βs = [0.01,0.15,0.3]
+        #βs = [0.01,0.15,0.3]
         max_h =-Inf
         optimal_policy = []
         optimal_beta = -1
