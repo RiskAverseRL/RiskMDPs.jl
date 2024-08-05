@@ -1,10 +1,12 @@
 using DataFrames: DataFrame
 using DataFramesMeta
+using LinearAlgebra
 using MDPs
 using JuMP, HiGHS
 using CSV: File
 using RiskMDPs
 using Plots
+using Infiltrator
 
 # ---------------------------------------------------------------
 # ERM with the total reward criterion. an infinite horizon. This formulation is roughly equivalent 
@@ -78,20 +80,24 @@ end
 Linear program to compute erm exponential value function w and the optimal policy
 Assume that the last state is the sink state
 """
-function erm_linear_program(model::TabMDP,B::Array,β::Real)
-
+function erm_linear_program(model::TabMDP, B::Array, β::Real)
+    # TODO: this assumes that the last state is the sink!!
+    # TODO: this function should probably not take both β and B because
+    # they may not be consistent and it is almost impossible to check
+    # whether they are
+    
      #lpm = Model(GLPK.Optimizer)
      lpm = Model(HiGHS.Optimizer)
      set_silent(lpm)
 
      state_number = state_count(model)
-     w = zeros(state_number)
-     v = zeros(state_number)
+     #w = zeros(state_number)
+     #v = zeros(state_number)
      π = zeros(Int , state_number)
 
 
-     @variable(lpm,w[1: state_number] )
-     @objective(lpm,Min,sum(w[1: state_number]))
+    @variable(lpm, w[1:(state_number-1)] )
+    @objective(lpm, Min, sum(w))
 
     constraints::Vector{Vector{ConstraintRef}} = []
 
@@ -101,22 +107,23 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
         c_s::Vector{ConstraintRef} = []
         for a in 1: action_number
             snext = transition(model,s,a)
-            # bw is used to save  B_{s,̇̇}^a * \bm{w} in the linear program formulation
-            bw = 0 
-            for (sn, p, r) in snext
-                if sn != state_number # state_number is the sink state
-                    bw += B[s,a,sn] * w[sn]
-                end
-            end
+            # bw = 0 
+            #for (sn, p, r) in snext
+            #    if sn != state_number # state_number is the sink state
+            #        bw += B[s,a,sn] * w[sn]
+            #    end
+            #end
             # constraint for a non-sink state and an action
-            push!(c_s,@constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw ))
+            #push!(c_s, @constraint(lpm, w[s] ≥ -B[s,a,state_number] + bw ))
+            push!(c_s, @constraint(lpm, w[s] ≥ B[s,a,1:(state_number-1)] ⋅ w -
+                      B[s,a,state_number] ))
 
         end
         push!(constraints, c_s)
     end
 
     # The constraint for the sink state
-    push!(constraints, [@constraint(lpm, w[state_number] == -1)])
+    #push!(constraints, [@constraint(lpm, w[state_number] == -1)])
     optimize!(lpm)
 
     # Check if the linear program has a feasible solution
@@ -125,17 +132,17 @@ function erm_linear_program(model::TabMDP,B::Array,β::Real)
     else
 
          # Exponential value functions
-         w = value.(w) 
+         w = vcat(value.(w), [-1.0])
 
          #Regular value functions 
-         v = -1.0/β * log.(-value.(w) )
+         v = -inv(β) * log.(-value.(w) )
 
          # Initialize a policy and generate an optimal policy
          #π = zeros(Int , state_number)
 
          # Check active constraints to obtain the optimal policy
-         π = map(x->argmax(dual.(x)), constraints)
-         # map(x->println(dual.(x)), constraints)
+         π = vcat(map(x->argmax(dual.(x)), constraints), [1])
+         println(map(x->dual.(x), constraints))
 
         return (status ="feasible", w=w,v=v,π=π)
     end 
@@ -190,6 +197,7 @@ function h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
         i += 1
         for β in βs
             B = compute_B(model,β)
+
             status,w,v,π = erm_linear_program(model,B,β)
 
             # compute the optimal policy for β that has only feasible solution
@@ -335,7 +343,7 @@ end
 
  end
 
-function main()
+function main_evar()
 
     δ = 0.01
     ΔR =1 # how to set ΔR ?? max r - min r: r is the immediate reward
@@ -346,7 +354,7 @@ function main()
     Output:  the model passed in ERM function
      """
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "g10neg.csv")
+                   "data", "g10.csv")
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
     #                    "data", "single_tra.csv")
                                  
@@ -364,13 +372,13 @@ function main()
     # risk level of EVaR
     #alpha_array = [0.15,0.3,0.45,0.6]
     #alpha_array = [0.7,0.9]
-    alpha_array = [0.8]
+    alpha_array = [0.001, 0.01, 0.1, 1.0, 10.0]
 
     # plot h(β) vs. β given different α values
     #h_beta_plot(alpha_array,initial_state_pro, model,δ, ΔR)
 
     #Compute the optimal policy 
-    erm_trc, betas =compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
+    erm_trc, betas = compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
 
    # plot erm values in a discounted MDP and a transient MDP
    #  erm_discounted = r/(1-γ)
@@ -391,7 +399,41 @@ function main()
   
 end 
 
-main()
+########
+
+function main_erm()
+
+    filepath = joinpath(dirname(pathof(RiskMDPs)), 
+                   "data", "g10.csv")
+    model = load_mdp(File(filepath))
+    
+    state_number = state_count(model)
+    initial_state_pro = Vector{Float64}()
+    for index in 1:(state_number-1)
+        append!(initial_state_pro,1.0/(state_number-1)) # start with a non-sink state
+    end
+    append!(initial_state_pro,0) # add the sink state with the initial probability 0
+
+    
+    β_array = [0.001, 0.01, 0.1, 1.0, 10.0]
+
+    for β ∈ β_array
+        B = compute_B(model, β)
+        status,w,v,π = erm_linear_program(model, B, β)
+        println("++++++++++++++++++++++++++++++++++")
+        #println("B = \n $")
+        #println("-----------------")
+        println("w =\n", w)
+        println("-----------------")
+        println("v =\n", v)
+        println("-----------------")
+        println("π =\n", π)
+    end
+end 
+
+####
+
+main_erm()
 
 
 
