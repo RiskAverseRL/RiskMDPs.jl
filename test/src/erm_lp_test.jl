@@ -12,7 +12,10 @@ using CSV: File
 using Infiltrator
 using Plots
 
-
+#----------------------
+# 1) Simulate ERM value functions
+# 2) plot histogram
+#--------------------
 
 
 """
@@ -62,9 +65,6 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     # reward weights
     rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
     
-    # # distribution over episodes
-    # edist::Vector{Float64} = ones(episodes) / episodes 
-    
     # for the uniform initial state distribution, call each non-sink state equal times
     erm_ave = 0.0 
     v_test =[]
@@ -90,53 +90,43 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     returns
 end
 
-# Only for integer return, gambler domain
-function plot_histogram(returns, α)
 
-    returns = Int.(returns)
-    returns_size = length(returns)
+# return can be a float number, gambler domain
+# Divide the range of returns into ten bins
+function  plot_histogram_float(returns, α)
+
     max_value = maximum(returns)
-    #println("maiximal value is: ", max_value)
-    counts = zeros(max_value + 1)
-    
-    # value is in the range [0,max_value]. 
-    # value is increased by 1 to satisfy 1_based index
-    for value in returns
-        value +=1 
-        counts[value] += 1   
-    end
+    min_value = minimum(returns)
+    println("maiximal value is: ", max_value)
+    println("minimal value is: ", min_value)
+    bin = (max_value - min_value) /10.0
 
-    x = [] 
-    for i in 1: max_value+1 
-        push!(x,i-1)
-    end
-     
-    # relative frequency
-    relative_fre = []
-    for i in 1: (max_value + 1)
-        push!(relative_fre,  counts[i]*1.0/returns_size)
-    end
-
-    p = bar(x,relative_fre,legend = false)
+    p = histogram(returns,bins = min_value:bin:max_value,normed=true,legend = false)
+    xlims!(min_value, max_value)
     ylabel!("Relative frequency")
     xlabel!("Final capital")
     title!("α = $(α)")
-    savefig(p,"hisgram$α.pdf")
+    savefig(p,"capital_$α.pdf")
 
 end
 
 function main()
 
-    α = 0.85
-
-    # The optimal policy
-    π ::Vector{Int} =   [1, 2, 2, 2, 3, 3, 5, 4, 3, 2, 1, 1]
+     
     #π ::Vector{Int} =[1, 1] # For the single state example
 
-    β = 0.08
+    # # The optimal policy, for gm0.1.csv
+    # α = 0.1
+    # β =  35.628661689092
+    # π ::Vector{Int} =   [1, 2, 3, 4, 5, 1, 1]
+
+    α = 0.9
+    β =  0.88528658
+    π ::Vector{Int} = [1, 2, 2, 2, 2, 1, 1]
+   
 
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                    "data", "g10.csv")
+                    "data", "gm0.1.csv")
                     
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
     #                 "data", "single_tra.csv")
@@ -144,8 +134,9 @@ function main()
     model = load_mdp(File(filepath))
     returns = evaluate_sim(model, π, β)
 
-    # Only for integer return, gambler domain
-    # plot_histogram(returns, α )
+
+    #  return can be a float number, gambler domain
+    plot_histogram_float(returns, α )
 
 end
 
