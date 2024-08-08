@@ -58,7 +58,7 @@ end
 ####
 
 # evaluates the policy by simulation
-function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
+function evaluate_policy(model::TabMDP, π::Vector{Int}, β::Real)
     # evaluation helper variables
     episodes = 500
     horizon::Integer = 100
@@ -67,7 +67,6 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
     
     # for the uniform initial state distribution, call each non-sink state equal times
     erm_ave = 0.0 
-    v_test =[]
     states_number = state_count(model)
     returns = []
     for inistate in 1: (states_number -1)
@@ -76,11 +75,6 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
 
         # rets is a vector of the total rewards, size of rets = number of episodes
         rets = rweights' * H.rewards |> vec
-        
-        # returns is an array of returns for all episodes
-        for r in rets
-            push!(returns,r)
-        end
         
         ret_erm = ERM(rets, ones(length(rets)) / length(rets), β)
         erm_ave += ret_erm * 1.0/(states_number -1)
@@ -91,17 +85,45 @@ function evaluate_sim(model::TabMDP, π::Vector{Int}, β::Real)
 end
 
 
-# return can be a float number, gambler domain
-# Divide the range of returns into ten bins
+# evaluate_sim_plot is different from evaluate_sim. The function evaluate_sim_plot
+# exclude the the first state 1 (no money). The initial capital is at least 1 (state 2).
+function evaluate_policy_plot(model::TabMDP, π::Vector{Int})
+
+    # evaluation helper variables
+    episodes = 500
+    horizon::Integer = 50
+    # reward weights
+    rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
+    
+    # for the uniform initial state distribution
+    states_number = state_count(model)
+    returns = []
+    # inistate = 1, no money; 
+    for inistate in 2: (states_number -1)
+        H = simulate(model, π, inistate, horizon, episodes)
+        #@infiltrate
+
+        # rets is a vector of the total rewards, size of rets = number of episodes
+        rets = rweights' * H.rewards |> vec
+        
+        # returns is an array of returns for all episodes
+        for r in rets
+            push!(returns,r) 
+        end
+    end  
+    returns
+end
+
+
+# Histogram for single policy
 function  plot_histogram_float(returns, α)
 
-    max_value = maximum(returns)
-    min_value = minimum(returns)
-    println("maiximal value is: ", max_value)
-    println("minimal value is: ", min_value)
-    bin = (max_value - min_value) /10.0
+    max_value = 9.0
+    min_value = -1.0
+    b_range = range(-1, 9, length=11)
 
-    p = histogram(returns,bins = min_value:bin:max_value,normed=true,legend = false)
+    p = histogram(returns,bins = b_range,normalize=:pdf,legend = false,xticks = (-1:9,-1:9),
+                yticks = 0:0.1:1,bar_width = 0.5)
     xlims!(min_value, max_value)
     ylabel!("Relative frequency")
     xlabel!("Final capital")
@@ -110,33 +132,88 @@ function  plot_histogram_float(returns, α)
 
 end
 
+# Histogram for three polices
+function plot_histogram_multiple(returns_plot_1, α1,returns_plot_3, α3,returns_plot_7, α7,win_p )
+        
+    max_value = 9.0
+    min_value = -1.0
+    b_range = range(-1, 9, length=11)
+
+    p1 = histogram(returns_plot_1,bins = b_range,normalize=:pdf,legend = false,xticks = (-1:9,-1:9),
+                yticks = 0:0.1:1,bar_width = 0.5)
+    xlims!(min_value, max_value)
+    ylabel!("Relative frequency")
+    xlabel!("Final capital")
+    title!("α = $(α1)")
+
+    p3 = histogram(returns_plot_3,bins = b_range,normalize=:pdf,legend = false,xticks = (-1:9,-1:9),
+    yticks = 0:0.1:1,bar_width = 0.5)
+    xlims!(min_value, max_value)
+    ylabel!("Relative frequency")
+    xlabel!("Final capital")
+    title!("α = $(α3)")
+
+    p7 = histogram(returns_plot_7,bins = b_range,normalize=:pdf,legend = false,xticks = (-1:9,-1:9),
+    yticks = 0:0.1:1,bar_width = 0.5)
+    xlims!(min_value, max_value)
+    ylabel!("Relative frequency")
+    xlabel!("Final capital")
+    title!("α = $(α7)")
+
+    p = plot(p1, p3, p7, layout=(1, 3), legend=false)
+    savefig(p,"capitals$win_p.pdf")
+    
+end
+
 function main()
 
-     
-    #π ::Vector{Int} =[1, 1] # For the single state example
+    # The values below are for mg0.8.csv
+    α1 = 0.1
+    π1 ::Vector{Int} = [1,3,4,5,6,7,8,9,1,1]
+    β1 = 1.9982277118
 
-    # # The optimal policy, for gm0.1.csv
-    # α = 0.1
-    # β =  35.628661689092
-    # π ::Vector{Int} =   [1, 2, 3, 4, 5, 1, 1]
+    α3 = 0.3
+    π3 ::Vector{Int} = [1,3,2,2,2,2,2,2,1,1]
+    β3 = 0.83628965110
 
-    α = 0.9
-    β =  0.88528658
-    π ::Vector{Int} = [1, 2, 2, 2, 2, 1, 1]
-   
+    α7 = 0.7
+    π7 ::Vector{Int} = [1,2,2,2,2,2,2,2,1,1]
+    β7 =  0.3760661166107653
 
+    #--------
+    # mg0.85.csv, mg0.75.csv, mg0.8.csv, win_p = 0.85, 0.75, or 0.8
+    # The variable win_p represents the probability of winning one game.
+    #--------
+    win_p = 0.8
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                    "data", "gm0.1.csv")
-                    
+                    "data", "mg$win_p.csv")
+    
+    # Single state, for unbounded ERM plot with TRC
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
     #                 "data", "single_tra.csv")
 
     model = load_mdp(File(filepath))
-    returns = evaluate_sim(model, π, β)
+
+    #--------
+    # Evaluate the optimal policy and simulate the ERM value functions 
+    # β will be replaced by β1 or β3 or β7
+    #--------
+    # returns = evaluate_policy(model, π, β)
 
 
-    #  return can be a float number, gambler domain
-    plot_histogram_float(returns, α )
+    #--------
+    #  plot for one tuple (α,π,β),  β will be replaced by β1 or β3 or β7
+    #  π will be replaced by π1 or π3 or π7; α  will be replaced by α1 or α3 or α7
+    #------
+    # returns_plot = evaluate_policy_plot(model, π, β)
+    # plot_histogram_float(returns_plot, α )
+
+        
+    # plot for three tuples of (α,π,β)
+    returns_plot_1 = evaluate_policy_plot(model, π1)
+    returns_plot_3 = evaluate_policy_plot(model, π3)
+    returns_plot_7 = evaluate_policy_plot(model, π7)
+    plot_histogram_multiple(returns_plot_1, α1,returns_plot_3, α3,returns_plot_7, α7 ,win_p)
 
 end
 

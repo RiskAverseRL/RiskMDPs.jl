@@ -62,11 +62,12 @@ function evar_discretize_beta(α::Real, δ::Real, ΔR::Number)
     β1 = 8*δ / ΔR^2
     βK = -log(α) / δ
     println("minimal β =  ",β1 )
-    println("maximal β =  ",βK)
 
     βs = Vector{Float64}([])
     β = β1
-    while β < βK
+    # experimenting on small β values
+    β_bound = minimum([2,βK]) 
+    while β < β_bound
         append!(βs, β)
         β *= log(α) / (β*δ + log(α))
     end
@@ -109,18 +110,17 @@ function erm_linear_program(model::TabMDP, B::Array, β::Real)
     # TODO: this function should probably not take both β and B because
     # they may not be consistent and it is almost impossible to check
     # whether they are
-    
-     lpm = Model(HiGHS.Optimizer)
-     set_silent(lpm)
 
+    # β is only used to compute regular value function v from w
+    
      state_number = state_count(model)
      π = zeros(Int , state_number)
+     constraints::Vector{Vector{ConstraintRef}} = []
 
-
-    @variable(lpm, w[1:(state_number-1)] .<= -1e-10)
-    @objective(lpm, Min, sum(w))
-
-    constraints::Vector{Vector{ConstraintRef}} = []
+     lpm = Model(HiGHS.Optimizer)
+     set_silent(lpm)
+     @variable(lpm, w[1:(state_number-1)] )
+     @objective(lpm, Min, sum(w))
 
     #constraints for non-sink states and all available actions
     for s in 1: state_number-1
@@ -129,22 +129,16 @@ function erm_linear_program(model::TabMDP, B::Array, β::Real)
         for a in 1: action_number
             push!(c_s, @constraint(lpm, w[s] ≥ B[s,a,1:(state_number-1)] ⋅ w -
                       B[s,a,state_number] ))
-
         end
         push!(constraints, c_s)
     end
 
-    # The constraint for the sink state
-    #push!(constraints, [@constraint(lpm, w[state_number] == -1)])
     optimize!(lpm)
 
-    # Check if the linear program has a feasible solution
-    # value.(w)[(state_number -1 )] =0.0 is a feasible solution for linear program, but it is 
-    # unbounded for regular erm value function
-    if termination_status(lpm) ==  DUAL_INFEASIBLE || value.(w)[(state_number -1 )] == 0.0
+    # Check if the linear program has a feasible solution 
+    if termination_status(lpm) ==  DUAL_INFEASIBLE
         return  (status = "infeasible", w=zeros(state_number),v=zeros(state_number),π=zeros(Int64,state_number))
     else
-
          # Exponential value functions
          w = vcat(value.(w), [-1.0])
 
@@ -160,17 +154,12 @@ function erm_linear_program(model::TabMDP, B::Array, β::Real)
 end
 
 
-# Compute the optimal policy for different α values
+# Given different α values, compute the optimal policy for EVaR and ERM
 function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
     
-    #Save erm values and beta values for plotting unbounded erm
-    # in transient mdp 
+    #Save erm values and beta values for plotting unbounded erm 
     erm_values = []
     beta_values =[]
-
-    # Evar values and the optimal β values
-    evars = []
-    betaopt = []
 
     for α in alpha_array
         βs =  evar_discretize_beta(α, δ, ΔR)
@@ -180,15 +169,13 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
         optimal_v = []
         optimal_w = []
 
-
         for β in βs
             B = compute_B(model,β)
             status,w,v,π = erm_linear_program(model,B,β)
             
-            # compute the optimal policy for β that has only feasible solution
+            # compute the feasible and optimal solution
             if cmp(status,"infeasible") ==0 
-                #break
-                continue
+                break
             end
 
             # Calculate erm value. result is one number
@@ -218,11 +205,10 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
         println(" β* =  ", optimal_beta)
         println("ERM* = ",opt_erm)
         #println(" vector of regular erm value is  ",optimal_v)
-        println(" vector of exponential erm value is  ",optimal_w)
-        push!(evars, max_h)
-        push!(betaopt,optimal_beta)
+        #println(" vector of exponential erm value is  ",optimal_w)
+
     end
-    (erm_values,beta_values, evars,betaopt)
+    (erm_values,beta_values)
 end
 
 # Compute a single ERM value using the vector of regular value function and initial distribution
@@ -230,60 +216,38 @@ function compute_erm(value_function :: Vector, initial_state_pro :: Vector)
     return sum(value_function.*initial_state_pro)
 end
 
- # save alpha values and evar values to csv files 
-function save_reward_alpha_evar(alpha_array,evars,betaopt,penaltyr)
 
-    filepath = joinpath(pwd(),"src",  "data","$penaltyr"* ".csv");
-    data = DataFrame(alpha = alpha_array, evar = evars,beta=betaopt)
-    data_sorted = sort(data,[:alpha])
-    CSV.write(filepath, data_sorted)
-
-end
-
-# Show unbounded ERM value functions
+# Show unbounded ERM value functions, NO simulation for Infeasible solutions 
 # plot erm values for a discounted MDP and a transient MDP, single state
 function  erms_dis_trc(erm_trc, betas, erm_discounted)
     
     erm_dis = fill(erm_discounted,size(betas))
-    infeasible_x = []
-    infeasible_y =[]
-    last_beta = last(betas)
-    # Assigne a number to the erm value of infeasible solutions
-    trc_infeasible = last(erm_trc)-0.5 
-
-    beta_d = deepcopy(betas)
-
-    #generate data set for infeasible solutions
-    x_additonal = range(last_beta, stop=last_beta+0.2, length=200)
-    for i in x_additonal
-        append!(infeasible_x,i)
-        append!(infeasible_y,trc_infeasible)
-
-        # erm values for β greater than the threshold value
-        append!(beta_d,i)
-        append!(erm_dis,erm_discounted)
-    end
 
     p=plot(betas,erm_trc,label="trc", linewidth=3)
-    plot!(beta_d,erm_dis,label="discounted", linewidth=3)
-    plot!(infeasible_x,infeasible_y,label="infeasible",linewidth=3, ls=:dot)
-    xlims!(0,last(infeasible_x))
-    ylims!(-10,-1)
+    plot!(betas,erm_dis,label="discounted", linewidth=3)
+    xlims!(minimum(betas),last(betas))
+    ylims!(-12.5,-1.5)
     xlabel!("β")
     ylabel!("ERM value function")
-    savefig(p,"erm_dis_trc.pdf")
+    savefig(p,"erm_values_unbounded.pdf")
 
  end
 
+
 function main_evar()
 
-    δ = 0.005
+    δ = 0.01
     ΔR =1
 
+    #--------
+    # mg0.85.csv, mg0.75.csv, mg0.8.csv,
+    # The number above represents the probability of winning one game.
+    #--------
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "gm0.1.csv")
+                   "data", "mg0.8.csv")
+
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
-    #                    "data", "single_tra_dis.csv")
+    #                    "data", "single_tra.csv")
                                  
     model = load_mdp(File(filepath))
     
@@ -296,27 +260,23 @@ function main_evar()
     append!(initial_state_pro,0) # add the sink state with the initial probability 0
 
     # risk level of EVaR
-    alpha_array = [0.1,0.2,0.3, 0.4, 0.5,0.6,0.7,0.8,0.9]
+    alpha_array = [ 0.1,0.3,0.7]
 
     #Compute the optimal policy 
-    erm_trc, betas,evars,betaopt = compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
+    erm_trc, betas = compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
 
-    # The variable rpunish means the penalty(-penaltyr) for keep playing
-    # Save α, evar, and β*; file name is gm$penaltyr.csv
-    penaltyr = 0.1
-    save_reward_alpha_evar(alpha_array,evars,betaopt,penaltyr)
-
-    #Unbounded ERM value functions
+    #--------
     # plot erm values in a discounted MDP and a transient MDP
-    # erm_discounted = r/(1-γ)
-    erm_discounted = -2
-    #erms_dis_trc(erm_trc, betas, erm_discounted)
+    # erm_discounted = r/(1-γ), unbounded erm with TRC
+    #--------
+    # erm_discounted = -2
+    # erms_dis_trc(erm_trc, betas, erm_discounted)
 
     
     # Value iteration
-    # v,_,_ = value_iteration(model, InfiniteH(0.7); iterations = 10000)
-    # println("---------------------------")
-    # println("expectation, value functions: ",v)
+    #   v,_,_ = value_iteration(model, InfiniteH(0.7); iterations = 10000)
+    #   println("---------------------------")
+    #   println("expectation, value functions: ",sum(v .* initial_state_pro))
   
 end 
 
@@ -325,7 +285,7 @@ end
 function main_erm()
 
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "gm0.1.csv")
+                   "data", "mg.csv")
     model = load_mdp(File(filepath))
     
     state_number = state_count(model)
@@ -335,9 +295,8 @@ function main_erm()
     end
     append!(initial_state_pro,0) # add the sink state with the initial probability 0
 
+    β_array = [ 0.0000001,0.000001,0.01,0.1,1,1.2,1.5,1.7]
     
-    β_array = [ 0.000001,0.01,0.1,10,20]
-
     for β ∈ β_array
         B = compute_B(model, β)
         status,w,v,π = erm_linear_program(model, B, β)
@@ -355,6 +314,7 @@ end
 ####
 
 main_evar()
+#main_erm()
 
 
 
