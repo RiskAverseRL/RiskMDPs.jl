@@ -286,20 +286,20 @@ y4 = [ 0, 0, 0, 0, 0, 0] # quit, draw 0
 
    ymax = 4
 
-    p = scatter(states, y1,  markershape = :star5,markersize = 8,markeralpha = 0.6,
-                markercolor=RGBA(1, 1, 1, 0),label = "α = $α1",markerstrokecolor = "blue",
+    p = scatter(states, y1,  markershape = :star5,markersize = 13,
+               label = "α = $α1",markerstrokecolor = "blue",
                  markerstrokewidth=3.5,xticks = 1:1:7, yticks = 0:1:ymax,
                  legend=:topleft)
 
-        scatter!(states, y2;  markersize=11,markershape=:rect, markeralpha = 0.6,
+        scatter!(states, y2;  markersize=17,markershape=:rect, markeralpha = 0.6,
                  markercolor=RGBA(1, 1, 1, 0),label = "α = $α2",markerstrokecolor = "darkgreen",
                  markerstrokewidth=3.5, xticks = 1:1:7, yticks = 0:1:ymax )
                  
-        scatter!(states, y3,  markershape = :hexagon ,markersize = 28,markeralpha = 0.6,
+        scatter!(states, y3,  markershape = :ltriangle ,markersize = 16,markeralpha = 0.4,
                 markercolor=RGBA(1, 1, 1, 0), label = "α = $α3",markerstrokecolor = "red",
                 markerstrokewidth=3.5,xticks = 1:1:7, yticks = 0:1:ymax )
 
-        scatter!(states, y4,  markershape = :circle,markersize = 22,markeralpha = 0.6,
+        scatter!(states, y4,  markershape = :circle,markersize = 5,
                  markercolor=RGBA(1, 1, 1, 0),label = "α = $α4",markerstrokecolor = "purple",
                 markerstrokewidth=3.5,xticks = 0:1:7, yticks = 0:1:ymax )
 
@@ -349,7 +349,7 @@ function main_evar()
 
 
     #Compute the optimal policy 
-    erm_trc, betas,opt_policy = compute_optimal_policy(alpha_array,initial_state_pro, model,δ)
+    #erm_trc, betas,opt_policy = compute_optimal_policy(alpha_array,initial_state_pro, model,δ)
 
 
     # plot erm values in a discounted MDP and a transient MDP
@@ -357,7 +357,7 @@ function main_evar()
 
 
     # Plot the optimal policies. The optimal polices are copied inside the function
-    #plot_optimal_policy()
+    plot_optimal_policy()
 
 
     # Value iteration
