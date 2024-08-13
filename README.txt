@@ -1,32 +1,28 @@
-8/8/2024
+8/13/2024
 #-----------------------
 erm_lp_test.jl
 
-win_p represents the probability of winning one game.
-π1,π3,and π7 are the optimal policies for mg0.8.csv.
+"7 mgp0.68.csv" is generated from "modified_gamble.jl".
 
-when the winning probability is 0.75, that is mg0.75.csv,
- π1 ::Vector{Int} = [1,3,4,5,6,7,8,9,1,1]
- π3 ::Vector{Int} = [1,3,4,5,6,7,8,9,1,1]
- π7 ::Vector{Int} = [1,2,2,2,2,2,2,2,1,1]
-
-when the winning probability is 0.85, that is mg0.85.csv,
- π1 ::Vector{Int} = [1,3,4,5,6,7,8,9,1,1]
- π3 ::Vector{Int} = [1,2,2,2,2,2,2,2,1,1]
- π7 ::Vector{Int} = [1,2,2,2,2,2,2,2,1,1]
+1) Simulate ERM value functions;
+2) save the distribution of final capital to
+"data_bar.csv" under \src\data.
 
 #------------------------
 modified_gamble.jl
 
-Generate data file for the modified Gambler domain
-mg0.75.csv, mg stands for modified gambler. 0.75 represents the probability of winning one game
+Gambler(win_p,capital)
 
-The data files are saved \src\data
+It needs needs parameters capital and win_p. 
+The data file is named "$capital mgp$win_p.csv" and saved \src\data.
 
 #---------------
 ermLp.jl
-Compute the optimal polices for EVaR and ERM
-
+1) Compute the optimal polices for EVaR
+2)  Plot for unbounded ERM values in TRC and constant erm values in a discounted criterion
+3) plot the optimal policies
+4) The plot is saved .\RiskMDP.jl
 #-----------
-Plots/figures
-x.pdf files are saved in the folder RiskMDPs.jl
+Plots
+1) plot the distribution of final capital
+2) The plot is saved .\RiskMDP.jl

@@ -18,6 +18,7 @@ using PlotlyJS, CSV, DataFrames
 # 1) Simulate ERM value functions
 # 2) save the distribution of final capital to
 # "data_bar.csv"; 
+# "plots.jl " contains the code of plotting the distribution of final capital
 #--------------------
 
 
@@ -63,7 +64,7 @@ end
 # evaluates the policy by simulation
 function evaluate_policy(model::TabMDP, π::Vector{Int}, β::Real)
     # evaluation helper variables
-    episodes = 5
+    episodes = 1000
     horizon::Integer = 100
     # reward weights
     rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
@@ -191,6 +192,7 @@ end
 function main()
 
     # The values below are for "7 mgp0.68.csv"
+    # optimal policy π and optimal β given risk level α 
     α1 = 0.9
     π1 = [1, 2, 2, 2, 4, 3, 2, 1, 1]
     β1 = 2.0e-7
@@ -221,10 +223,8 @@ function main()
 
     model = load_mdp(File(filepath))
 
-    #--------
     # Evaluate the optimal policy and simulate the ERM value functions 
-    # β will be replaced by 
-    #--------
+    # β is replaced by β1,β2,β3,β4; π is replaced by π1,π2,π3,π4
     # returns = evaluate_policy(model, π, β)
 
 

@@ -197,6 +197,7 @@ end
 function main()
         
         # win_p: the probability of winning one game
+        # Gambler(win_p, capital)
         win_p = 0.68
         capital = 7
 

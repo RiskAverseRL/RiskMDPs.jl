@@ -16,7 +16,8 @@ using CSV
 # to using a discount factor of 1.0. The last state is considered as the sink state
 # 1) compute the optimal policy for EVaR and ERM
 # 2) Plot for unbounded ERM values
-# 3) save data of evars, optimal beta values, alphas to csv files
+# 3) plot the optimal polices
+# 4) The plot is saved .\RiskMDP.jl
 # ---------------------------------------------------------------
 
 """
@@ -73,11 +74,11 @@ function evar_discretize_beta(α::Real, δ::Real)
     while β < β_bound
         append!(βs, β)
         β *= log(α) / (β*δ + log(α)) *1.05
-        #β *= log(α) / (β*δ + log(α))  # for the plot of single state, unbounded erm 
+        # for the plot of single state, unbounded erm 
+        #β *= log(α) / (β*δ + log(α))  
 
     end
 
-    println("The length of βs  ",length(βs))
     βs
 
 end
@@ -231,17 +232,18 @@ function compute_erm(value_function :: Vector, initial_state_pro :: Vector, β::
 
     result = -inv(β) * log(sum_exp)
 
-    return result
+    result
 end
 
 
 # Show unbounded ERM value functions, NO simulation for Infeasible solutions 
 # plot erm values for a discounted MDP and a transient MDP, single state
-function  erms_dis_trc(erm_trc, betas, erm_discounted)
+function  erms_dis_trc(erm_trc, betas)
     
+    erm_discounted = -2
     erm_dis = fill(erm_discounted,size(betas))
 
-    p=plot(betas,erm_trc,label="trc", linewidth=3)
+    p=plot(betas,erm_trc,label="trc", linewidth=3,legend = :outertopright)
     plot!(betas,erm_dis,label="discounted", linewidth=3)
     xlims!(minimum(betas),last(betas))
     ylims!(-12.5,-1.5)
@@ -292,14 +294,15 @@ y4 = [ 0, 0, 0, 0, 0, 0] # quit, draw 0
         scatter!(states, y2;  markersize=11,markershape=:rect, markeralpha = 0.6,
                  markercolor=RGBA(1, 1, 1, 0),label = "α = $α2",markerstrokecolor = "darkgreen",
                  markerstrokewidth=3.5, xticks = 1:1:7, yticks = 0:1:ymax )
+                 
+        scatter!(states, y3,  markershape = :hexagon ,markersize = 28,markeralpha = 0.6,
+                markercolor=RGBA(1, 1, 1, 0), label = "α = $α3",markerstrokecolor = "red",
+                markerstrokewidth=3.5,xticks = 1:1:7, yticks = 0:1:ymax )
 
         scatter!(states, y4,  markershape = :circle,markersize = 22,markeralpha = 0.6,
                  markercolor=RGBA(1, 1, 1, 0),label = "α = $α4",markerstrokecolor = "purple",
                 markerstrokewidth=3.5,xticks = 0:1:7, yticks = 0:1:ymax )
 
-        scatter!(states, y3,  markershape = :hexagon ,markersize = 28,markeralpha = 0.6,
-                 markercolor=RGBA(1, 1, 1, 0), label = "α = $α3",markerstrokecolor = "red",
-                markerstrokewidth=3.5,xticks = 1:1:7, yticks = 0:1:ymax )
             
          xlims!(0,7)
          ylims!(0,4)
@@ -314,58 +317,49 @@ y4 = [ 0, 0, 0, 0, 0, 0] # quit, draw 0
 function main_evar()
 
     δ = 0.01
-    #--------
-    # 7 mgp0.68.csv; 0.68 is the probabilty of winning a game
-    # Gambler(7,0.68)
-    #--------
-    filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "7 mgp0.68.csv")
 
+    # # file for a single state, plot unbunded erm and constant erm 
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
     #                    "data", "single_tra.csv")
-                                 
-    model = load_mdp(File(filepath))
-    
-    # Uniform initial state distribution
-    state_number = state_count(model)
-    initial_state_pro = Vector{Float64}()
+    # initial_state_pro = [1,0]
+    # alpha_array = [0.7]
 
-    #-----------------------
+
+    # 7 mgp0.68.csv; 0.68 is the probabilty of winning a game
+    # Gambler(7,0.68)
+
+    filepath = joinpath(dirname(pathof(RiskMDPs)), 
+                   "data", "7 mgp0.68.csv") 
+                    
+    model = load_mdp(File(filepath))
+
     # For the gambler domain
     # Set 0 to the initial probability of the first state
-    #--------------------
+    state_number = state_count(model)
+    initial_state_pro = Vector{Float64}()
     append!(initial_state_pro,0) 
     for index in 2:(state_number-1)
-        append!(initial_state_pro,1.0/(state_number-1)) # start with a non-sink state
+        append!(initial_state_pro,1.0/(state_number-1)) 
     end
-    append!(initial_state_pro,0) # add the sink state with the initial probability 0
-    #----------------------------------
-
-    # #-----------------------
-    # # For single state, initial state distribution
-    # #--------------------
-    # initial_state_pro = [1,0]
-   
-
-    # risk level of EVaR
-    alpha_array = [0.2,0.4,0.7,0.9]
-
+    # add the sink state with the initial probability 0
+    append!(initial_state_pro,0) 
     
-    # Plot the optimal policies. The optimal polices are copied inside the function
-    plot_optimal_policy()
+    # risk level of EVaR
+     alpha_array = [0.2,0.4,0.7,0.9]
+
 
     #Compute the optimal policy 
     erm_trc, betas,opt_policy = compute_optimal_policy(alpha_array,initial_state_pro, model,δ)
 
 
-    # #--------
-    # # plot erm values in a discounted MDP and a transient MDP
-    # # erm_discounted = r/(1-γ), unbounded erm with TRC
-    # #--------
-    # erm_discounted = -2
-    # erms_dis_trc(erm_trc, betas, erm_discounted)
+    # plot erm values in a discounted MDP and a transient MDP
+    #erms_dis_trc(erm_trc, betas)
 
-    
+
+    # Plot the optimal policies. The optimal polices are copied inside the function
+    #plot_optimal_policy()
+
+
     # Value iteration
     #   v,_,_ = value_iteration(model, InfiniteH(0.7); iterations = 10000)
     #   println("---------------------------")
@@ -381,7 +375,7 @@ function main_erm()
     #                "data", "15 mgp0.8.csv")
     
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-    "data", "7 mgp0.65.csv")
+    "data", "7 mgp0.68.csv")
 
     model = load_mdp(File(filepath))
     
