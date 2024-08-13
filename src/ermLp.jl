@@ -6,8 +6,10 @@ using JuMP, HiGHS
 using CSV: File
 using RiskMDPs
 using Plots
+#using PlotlyJS
 using Infiltrator
 using CSV
+
 
 # ---------------------------------------------------------------
 # ERM with the total reward criterion. an infinite horizon. This formulation is roughly equivalent 
@@ -54,23 +56,28 @@ function load_mdp(input)
 end
 
 
-function evar_discretize_beta(α::Real, δ::Real, ΔR::Number)
+function evar_discretize_beta(α::Real, δ::Real)
     zero(α) < α < one(α) || error("α must be in (0,1)")
     zero(δ) < δ  || error("δ must be > 0")
 
     # set the smallest and largest values
-    β1 = 8*δ / ΔR^2
+    β1 = 2e-7
+    #β1 = 0.001 # for the plot of single state, unbounded erm
     βK = -log(α) / δ
-    println("minimal β =  ",β1 )
 
     βs = Vector{Float64}([])
     β = β1
+
     # experimenting on small β values
-    β_bound = minimum([2,βK]) 
+    β_bound = minimum([10,βK]) 
     while β < β_bound
         append!(βs, β)
-        β *= log(α) / (β*δ + log(α))
+        β *= log(α) / (β*δ + log(α)) *1.05
+        #β *= log(α) / (β*δ + log(α))  # for the plot of single state, unbounded erm 
+
     end
+
+    println("The length of βs  ",length(βs))
     βs
 
 end
@@ -136,7 +143,7 @@ function erm_linear_program(model::TabMDP, B::Array, β::Real)
     optimize!(lpm)
 
     # Check if the linear program has a feasible solution 
-    if termination_status(lpm) ==  DUAL_INFEASIBLE
+    if termination_status(lpm) ==  DUAL_INFEASIBLE || w[(state_number - 1) ] == 0.0
         return  (status = "infeasible", w=zeros(state_number),v=zeros(state_number),π=zeros(Int64,state_number))
     else
          # Exponential value functions
@@ -155,14 +162,15 @@ end
 
 
 # Given different α values, compute the optimal policy for EVaR and ERM
-function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
+function compute_optimal_policy(alpha_array,initial_state_pro, model,δ)
     
     #Save erm values and beta values for plotting unbounded erm 
     erm_values = []
     beta_values =[]
+    opt_policy = []
 
     for α in alpha_array
-        βs =  evar_discretize_beta(α, δ, ΔR)
+        βs =  evar_discretize_beta(α, δ)
         max_h =-Inf
         optimal_policy = []
         optimal_beta = -1
@@ -179,7 +187,7 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
             end
 
             # Calculate erm value. result is one number
-            erm = compute_erm(v,initial_state_pro)
+            erm = compute_erm(v,initial_state_pro, β)
 
             # Save erm values and β values for plots
             append!(erm_values,erm)
@@ -206,14 +214,24 @@ function compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
         println("ERM* = ",opt_erm)
         #println(" vector of regular erm value is  ",optimal_v)
         #println(" vector of exponential erm value is  ",optimal_w)
+        push!(opt_policy,optimal_policy)
 
     end
-    (erm_values,beta_values)
+    (erm_values,beta_values,opt_policy)
 end
 
 # Compute a single ERM value using the vector of regular value function and initial distribution
-function compute_erm(value_function :: Vector, initial_state_pro :: Vector)
-    return sum(value_function.*initial_state_pro)
+function compute_erm(value_function :: Vector, initial_state_pro :: Vector, β::Real)
+
+    # -1.0/β * log(∑ μ_s * exp())
+    sum_exp = 0.0
+    for index in 1:length(value_function)
+        sum_exp += initial_state_pro[index] * exp(-β * value_function[index])
+    end
+
+    result = -inv(β) * log(sum_exp)
+
+    return result
 end
 
 
@@ -233,18 +251,75 @@ function  erms_dis_trc(erm_trc, betas, erm_discounted)
 
  end
 
+ # Given four different α values, plot the optimal policies
+ function plot_optimal_policy()
+
+# Delete the first state, last state and the sink state
+# investment = action -1
+α1 = 0.9
+π1 = [1, 2, 2, 2, 4, 3, 2, 1, 1]
+y1 =[1, 1, 1, 3, 2, 1]
+
+α2 = 0.7
+π2 = [1, 2, 2, 2, 2, 2, 2, 1, 1]
+y2 =[1, 1, 1, 1, 1, 1,]
+
+
+α3 = 0.40
+π3 = [1, 3, 2, 2, 2, 2, 2, 1, 1]
+#y3 = [3, 2, 2, 2, 2, 2]
+y3 = [0, 1, 1, 1, 1, 1] # 3, quit, draw 0
+
+
+α4 = 0.20
+π4 = [1, 3, 4, 5, 6, 7, 8, 1, 1]
+#y4 = [ 3, 4, 5, 6, 7, 8]
+y4 = [ 0, 0, 0, 0, 0, 0] # quit, draw 0
+
+   
+   states= []
+   for index in 1:6
+       push!(states,index)
+   end
+
+   ymax = 4
+
+    p = scatter(states, y1,  markershape = :star5,markersize = 8,markeralpha = 0.6,
+                markercolor=RGBA(1, 1, 1, 0),label = "α = $α1",markerstrokecolor = "blue",
+                 markerstrokewidth=3.5,xticks = 1:1:7, yticks = 0:1:ymax,
+                 legend=:topleft)
+
+        scatter!(states, y2;  markersize=11,markershape=:rect, markeralpha = 0.6,
+                 markercolor=RGBA(1, 1, 1, 0),label = "α = $α2",markerstrokecolor = "darkgreen",
+                 markerstrokewidth=3.5, xticks = 1:1:7, yticks = 0:1:ymax )
+
+        scatter!(states, y4,  markershape = :circle,markersize = 22,markeralpha = 0.6,
+                 markercolor=RGBA(1, 1, 1, 0),label = "α = $α4",markerstrokecolor = "purple",
+                markerstrokewidth=3.5,xticks = 0:1:7, yticks = 0:1:ymax )
+
+        scatter!(states, y3,  markershape = :hexagon ,markersize = 28,markeralpha = 0.6,
+                 markercolor=RGBA(1, 1, 1, 0), label = "α = $α3",markerstrokecolor = "red",
+                markerstrokewidth=3.5,xticks = 1:1:7, yticks = 0:1:ymax )
+            
+         xlims!(0,7)
+         ylims!(0,4)
+         xlabel!("state")
+         ylabel!("optimal action")
+    
+         savefig(p,"policy.pdf")
+
+ end
+
 
 function main_evar()
 
     δ = 0.01
-    ΔR =1
-
     #--------
-    # mg0.85.csv, mg0.75.csv, mg0.8.csv,
-    # The number above represents the probability of winning one game.
+    # 7 mgp0.68.csv; 0.68 is the probabilty of winning a game
+    # Gambler(7,0.68)
     #--------
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "mg0.8.csv")
+                   "data", "7 mgp0.68.csv")
 
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
     #                    "data", "single_tra.csv")
@@ -254,21 +329,39 @@ function main_evar()
     # Uniform initial state distribution
     state_number = state_count(model)
     initial_state_pro = Vector{Float64}()
-    for index in 1:(state_number-1)
+
+    #-----------------------
+    # For the gambler domain
+    # Set 0 to the initial probability of the first state
+    #--------------------
+    append!(initial_state_pro,0) 
+    for index in 2:(state_number-1)
         append!(initial_state_pro,1.0/(state_number-1)) # start with a non-sink state
     end
     append!(initial_state_pro,0) # add the sink state with the initial probability 0
+    #----------------------------------
+
+    # #-----------------------
+    # # For single state, initial state distribution
+    # #--------------------
+    # initial_state_pro = [1,0]
+   
 
     # risk level of EVaR
-    alpha_array = [ 0.1,0.3,0.7]
+    alpha_array = [0.2,0.4,0.7,0.9]
+
+    
+    # Plot the optimal policies. The optimal polices are copied inside the function
+    plot_optimal_policy()
 
     #Compute the optimal policy 
-    erm_trc, betas = compute_optimal_policy(alpha_array,initial_state_pro, model,δ, ΔR)
+    erm_trc, betas,opt_policy = compute_optimal_policy(alpha_array,initial_state_pro, model,δ)
 
-    #--------
-    # plot erm values in a discounted MDP and a transient MDP
-    # erm_discounted = r/(1-γ), unbounded erm with TRC
-    #--------
+
+    # #--------
+    # # plot erm values in a discounted MDP and a transient MDP
+    # # erm_discounted = r/(1-γ), unbounded erm with TRC
+    # #--------
     # erm_discounted = -2
     # erms_dis_trc(erm_trc, betas, erm_discounted)
 
@@ -284,8 +377,12 @@ end
 
 function main_erm()
 
+    # filepath = joinpath(dirname(pathof(RiskMDPs)), 
+    #                "data", "15 mgp0.8.csv")
+    
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "mg.csv")
+    "data", "7 mgp0.65.csv")
+
     model = load_mdp(File(filepath))
     
     state_number = state_count(model)
@@ -295,19 +392,21 @@ function main_erm()
     end
     append!(initial_state_pro,0) # add the sink state with the initial probability 0
 
-    β_array = [ 0.0000001,0.000001,0.01,0.1,1,1.2,1.5,1.7]
+    
+    β_array = [ 1.1e-7,1.2e-7,1.3e-7,1.4e-7,1.5e-7,1.6e-7,1.7e-7,1.8e-7,1.9e-7]
+    #β_array = [ 1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9]
     
     for β ∈ β_array
         B = compute_B(model, β)
         status,w,v,π = erm_linear_program(model, B, β)
-        println("++++++++++++++++++++++++++++++++++  ", β)
+        println("+++++++++++++++++ ", β)
         #println("B = \n $")
         #println("-----------------")
         #println("w =\n", w)
         #println("-----------------")
        # println("v =\n", v)
-        println("-----------------")
         println("π =\n", π)
+        println("-----------------")
     end
 end 
 

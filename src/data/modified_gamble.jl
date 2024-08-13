@@ -156,7 +156,7 @@ function  construct_transient_mpd(frame,states, actions,rpenalty)
     end
 
 # Sum the probabilities with the same s,a,s' and r
-function compress_transient_mpd(frame,win_p)
+function compress_transient_mpd(frame,win_p,capital)
 
     arr_idstatefrom = Vector{Int}()
     arr_idstateto = Vector{Int}()
@@ -186,7 +186,8 @@ function compress_transient_mpd(frame,win_p)
         push!(arr_reward, key[4])
     end
        # save the compressed transient MDP
-       filepath = joinpath(pwd(),"src",  "data","mg$win_p.csv");
+       #filepath = joinpath(pwd(),"src",  "data","mg$win_p.csv"); # no penalty
+       filepath = joinpath(pwd(),"src",  "data","$capital mgp$win_p.csv");
        data = DataFrame(idstatefrom = arr_idstatefrom, idaction = arr_idaction, idstateto = arr_idstateto, probability = arr_prob,
                      reward = arr_reward)
        data_sorted = sort(data,[:idstatefrom,:idaction,:idstateto])
@@ -196,11 +197,11 @@ end
 function main()
         
         # win_p: the probability of winning one game
-        win_p = 0.8
-        capital = 8
+        win_p = 0.68
+        capital = 7
 
         # Penalty for keeping playing the game
-        rpenalty = 0.0 
+        rpenalty = 0.00
 
         # Generate a 0_based dataframe from Gambler domain, 
         model = Gambler.Ruin(win_p, capital)
@@ -213,7 +214,7 @@ function main()
         
 
         #compress the transition probabilities with same s,a,s',r)
-        compress_transient_mpd(data_transient,win_p)
+        compress_transient_mpd(data_transient,win_p,capital)
 
     end
 

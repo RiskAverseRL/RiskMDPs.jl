@@ -10,11 +10,14 @@ using DataFramesMeta
 using LinearAlgebra
 using CSV: File
 using Infiltrator
-using Plots
+#using Plots
+using CSV
+using PlotlyJS, CSV, DataFrames
 
 #----------------------
 # 1) Simulate ERM value functions
-# 2) plot histogram
+# 2) save the distribution of final capital to
+# "data_bar.csv"; 
 #--------------------
 
 
@@ -60,7 +63,7 @@ end
 # evaluates the policy by simulation
 function evaluate_policy(model::TabMDP, π::Vector{Int}, β::Real)
     # evaluation helper variables
-    episodes = 500
+    episodes = 5
     horizon::Integer = 100
     # reward weights
     rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
@@ -90,8 +93,8 @@ end
 function evaluate_policy_plot(model::TabMDP, π::Vector{Int})
 
     # evaluation helper variables
-    episodes = 500
-    horizon::Integer = 50
+    episodes = 1000
+    horizon::Integer = 100
     # reward weights
     rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
     
@@ -115,78 +118,102 @@ function evaluate_policy_plot(model::TabMDP, π::Vector{Int})
 end
 
 
-# Histogram for single policy
-function  plot_histogram_float(returns, α)
+# save data for Bar plot; four β values, four returns
+# convert to a distribution of final capital 
+function save_bar_data(returns_plot_1, α1,returns_plot_2, α2,returns_plot_3, α3,
+    returns_plot_4, α4,win_p )
 
-    max_value = 9.0
-    min_value = -1.0
-    b_range = range(-1, 9, length=11)
+    cmax = 8
+    xmax = 8+2
 
-    p = histogram(returns,bins = b_range,normalize=:pdf,legend = false,xticks = (-1:9,-1:9),
-                yticks = 0:0.1:1,bar_width = 0.5)
-    xlims!(min_value, max_value)
-    ylabel!("Relative frequency")
-    xlabel!("Final capital")
-    title!("α = $(α)")
-    savefig(p,"capital_$α.pdf")
+ capital =[]
+ for value in -1:cmax
+   push!(capital,value)
+ end
+
+ count_1 = zeros(Int64,xmax)
+ returns_plot_1 = map(Int,returns_plot_1)
+ for i in returns_plot_1
+    count_1[i+2] += 1
+ end
+
+ size1 = length(returns_plot_1)
+ count_11 = zeros(Float64,xmax)
+ for i in 1:xmax
+    count_11[i] =  count_1[i] / size1 
+ end
+
+
+ returns_plot_2 = map(Int,returns_plot_2)
+ count_2 = zeros(Int64,xmax)
+ for i in returns_plot_2
+    count_2[i+2] += 1
+ end
+
+ returns_plot_3 = map(Int,returns_plot_3)
+ count_3 = zeros(Int64,xmax)
+ for i in returns_plot_3
+    count_3[i+2] += 1
+ end
+
+ returns_plot_4 = map(Int,returns_plot_4)
+ count_4 = zeros(Int64,xmax)
+ for i in returns_plot_4
+    count_4[i+2] += 1
+ end
+
+ size2 = length(returns_plot_2)
+ count_22 = zeros(Float64,xmax)
+ for i in 1:xmax
+    count_22[i] =  count_2[i] / size2
+ end
+
+ size3 = length(returns_plot_3)
+ count_33 = zeros(Float64,xmax)
+ for i in 1:xmax
+    count_33[i] =  count_3[i] / size3
+ end
+
+ size4 = length(returns_plot_4)
+ count_44 = zeros(Float64,xmax)
+ for i in 1:xmax
+    count_44[i] =  count_4[i] / size4 
+ end
+
+ filepath = joinpath(pwd(),"src",  "data","data_bar.csv");
+ data = DataFrame(capital= capital, one = count_11, two = count_22, three = count_33,
+               four = count_44)
+ CSV.write(filepath, data)
 
 end
 
-# Histogram for three polices
-function plot_histogram_multiple(returns_plot_1, α1,returns_plot_3, α3,returns_plot_7, α7,win_p )
-        
-    max_value = 9.0
-    min_value = -1.0
-    b_range = range(-1, 9, length=11)
-
-    p1 = histogram(returns_plot_1,bins = b_range,normalize=:pdf,legend = false,xticks = (-1:9,-1:9),
-                yticks = 0:0.1:1,bar_width = 0.5)
-    xlims!(min_value, max_value)
-    ylabel!("Relative frequency")
-    xlabel!("Final capital")
-    title!("α = $(α1)")
-
-    p3 = histogram(returns_plot_3,bins = b_range,normalize=:pdf,legend = false,xticks = (-1:9,-1:9),
-    yticks = 0:0.1:1,bar_width = 0.5)
-    xlims!(min_value, max_value)
-    ylabel!("Relative frequency")
-    xlabel!("Final capital")
-    title!("α = $(α3)")
-
-    p7 = histogram(returns_plot_7,bins = b_range,normalize=:pdf,legend = false,xticks = (-1:9,-1:9),
-    yticks = 0:0.1:1,bar_width = 0.5)
-    xlims!(min_value, max_value)
-    ylabel!("Relative frequency")
-    xlabel!("Final capital")
-    title!("α = $(α7)")
-
-    p = plot(p1, p3, p7, layout=(1, 3), legend=false)
-    savefig(p,"capitals$win_p.pdf")
-    
-end
 
 function main()
 
-    # The values below are for mg0.8.csv
-    α1 = 0.1
-    π1 ::Vector{Int} = [1,3,4,5,6,7,8,9,1,1]
-    β1 = 1.9982277118
+    # The values below are for "7 mgp0.68.csv"
+    α1 = 0.9
+    π1 = [1, 2, 2, 2, 4, 3, 2, 1, 1]
+    β1 = 2.0e-7
+    
+    α2 = 0.7
+    π2 = [1, 2, 2, 2, 2, 2, 2, 1, 1]
+    β2 = 0.18540702552730967
+    
+    α3 = 0.40
+    π3 = [1, 3, 2, 2, 2, 2, 2, 1, 1]
+    β3 = 0.4606792767478131
 
-    α3 = 0.3
-    π3 ::Vector{Int} = [1,3,2,2,2,2,2,2,1,1]
-    β3 = 0.83628965110
-
-    α7 = 0.7
-    π7 ::Vector{Int} = [1,2,2,2,2,2,2,2,1,1]
-    β7 =  0.3760661166107653
+    α4 = 0.20
+    π4 = [1, 3, 4, 5, 6, 7, 8, 1, 1]
+    β4 = 2.082785325139126
 
     #--------
-    # mg0.85.csv, mg0.75.csv, mg0.8.csv, win_p = 0.85, 0.75, or 0.8
+    # "7 mgp0.68.csv", win_p = 0.68
     # The variable win_p represents the probability of winning one game.
     #--------
-    win_p = 0.8
+    win_p = 0.68
     filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                    "data", "mg$win_p.csv")
+                    "data", "7 mgp0.68.csv")
     
     # Single state, for unbounded ERM plot with TRC
     # filepath = joinpath(dirname(pathof(RiskMDPs)), 
@@ -196,24 +223,20 @@ function main()
 
     #--------
     # Evaluate the optimal policy and simulate the ERM value functions 
-    # β will be replaced by β1 or β3 or β7
+    # β will be replaced by 
     #--------
     # returns = evaluate_policy(model, π, β)
 
 
-    #--------
-    #  plot for one tuple (α,π,β),  β will be replaced by β1 or β3 or β7
-    #  π will be replaced by π1 or π3 or π7; α  will be replaced by α1 or α3 or α7
-    #------
-    # returns_plot = evaluate_policy_plot(model, π, β)
-    # plot_histogram_float(returns_plot, α )
-
-        
-    # plot for three tuples of (α,π,β)
+    # compute returns for four policies and save the distribution of
+    # the final capitals
     returns_plot_1 = evaluate_policy_plot(model, π1)
+    returns_plot_2 = evaluate_policy_plot(model, π2)
     returns_plot_3 = evaluate_policy_plot(model, π3)
-    returns_plot_7 = evaluate_policy_plot(model, π7)
-    plot_histogram_multiple(returns_plot_1, α1,returns_plot_3, α3,returns_plot_7, α7 ,win_p)
+    returns_plot_4 = evaluate_policy_plot(model, π4)
+    save_bar_data(returns_plot_1, α1,returns_plot_2, α2,
+    returns_plot_3, α3 ,returns_plot_4, α4 ,win_p)
+ 
 
 end
 
