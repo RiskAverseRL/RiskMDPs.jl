@@ -244,11 +244,11 @@ function  erms_dis_trc(erm_trc, betas)
     erm_dis = fill(erm_discounted,size(betas))
 
     p=plot(betas,erm_trc,label="trc", linewidth=3,legend = :outertopright)
-    plot!(betas,erm_dis,label="discounted", linewidth=3)
+    plot!(betas,erm_dis,label="discounted", linewidth=3,linestyle=:dot)
     xlims!(minimum(betas),last(betas))
     ylims!(-12.5,-1.5)
     xlabel!("β")
-    ylabel!("ERM value function")
+    ylabel!("ERM value")
     savefig(p,"erm_values_unbounded.pdf")
 
  end
@@ -344,8 +344,8 @@ function main_evar()
     # add the sink state with the initial probability 0
     append!(initial_state_pro,0) 
     
-    # risk level of EVaR
-     alpha_array = [0.2,0.4,0.7,0.9]
+    # #risk level of EVaR
+    alpha_array = [0.2,0.4,0.7,0.9]
 
 
     #Compute the optimal policy 
@@ -353,7 +353,7 @@ function main_evar()
 
 
     # plot erm values in a discounted MDP and a transient MDP
-    #erms_dis_trc(erm_trc, betas)
+    # erms_dis_trc(erm_trc, betas)
 
 
     # Plot the optimal policies. The optimal polices are copied inside the function
