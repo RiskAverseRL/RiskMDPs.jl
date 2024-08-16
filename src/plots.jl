@@ -1,11 +1,9 @@
-using PlotlyJS, CSV, DataFrames
+#using PlotlyJS, CSV, DataFrames
+using Plots
 
 # Bar plot of the distribution of the final capital
 function main()
-  
-    
-    capitals = ["-1", "0", "1", "2", "3", "4",
-          "5", "6", "7"]
+    capitals = ["-1", "0", "1", "2", "3", "4", "5", "6", "7"]
     # The distribution is from "data_bar.csv"
     α9 = [0.19042857142857142,0,0,0,0,0,0,0,0.8095714285714286]
     α7 = [0.11985714285714286,0,0,0,0,0,0,0,0.8801428571428571]
@@ -32,4 +30,24 @@ end
 
 
 
-main()
+#main()
+#####
+
+function main2()
+    pgfplotsx()
+    p1 = scatter(capitals, α9, label = "α = 0.9", size=(350,240), legend=:topleft,
+                 xlabel="Capital", ylabel = "Probability")
+    scatter!(capitals, α7, label = "α = 0.7")
+    scatter!(capitals, α4, label = "α = 0.4")
+    scatter!(capitals, α2,  label = "α = 0.2")
+    plot!(capitals, α9, linestyle=:dash, linecolor=p1.series_list[1][:fillcolor], label=nothing)
+    plot!(capitals, α7, linestyle=:dash, linecolor=p1.series_list[2][:fillcolor], label=nothing)
+    plot!(capitals, α4, linestyle=:dash, linecolor=p1.series_list[3][:fillcolor], label=nothing)
+    plot!(capitals, α2, linestyle=:dash, linecolor=p1.series_list[4][:fillcolor], label=nothing)
+    p1
+end
+
+p1 = main2()
+
+savefig(p1,"final_capital_distri.pdf")
+

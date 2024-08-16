@@ -12,7 +12,7 @@ using CSV: File
 using Infiltrator
 #using Plots
 using CSV
-using PlotlyJS, CSV, DataFrames
+#using PlotlyJS, CSV, DataFrames
 
 #----------------------
 # 1) Simulate ERM value functions
@@ -64,7 +64,7 @@ end
 # evaluates the policy by simulation
 function evaluate_policy(model::TabMDP, π::Vector{Int}, β::Real)
     # evaluation helper variables
-    episodes = 1000
+    episodes = 10000
     horizon::Integer = 100
     # reward weights
     rweights::Vector{Float64} = 1.0 .^ (0:horizon-1)    
@@ -73,7 +73,8 @@ function evaluate_policy(model::TabMDP, π::Vector{Int}, β::Real)
     erm_ave = 0.0 
     states_number = state_count(model)
     returns = []
-    for inistate in 1: (states_number -1)
+    # TODO: change to use the distribution
+    for inistate in 1:(states_number - 1)
         H = simulate(model, π, inistate, horizon, episodes)
         #@infiltrate
 
@@ -181,7 +182,7 @@ function save_bar_data(returns_plot_1, α1,returns_plot_2, α2,returns_plot_3, �
     count_44[i] =  count_4[i] / size4 
  end
 
- filepath = joinpath(pwd(),"src",  "data","data_bar.csv");
+ filepath = joinpath(pwd(), "..", "..", "data","data_bar.csv");
  data = DataFrame(capital= capital, one = count_11, two = count_22, three = count_33,
                four = count_44)
  CSV.write(filepath, data)

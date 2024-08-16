@@ -6,9 +6,10 @@ using JuMP, HiGHS
 using CSV: File
 using RiskMDPs
 using Plots
-#using PlotlyJS
 using Infiltrator
 using CSV
+
+pgfplotsx()
 
 
 # ---------------------------------------------------------------
@@ -19,6 +20,8 @@ using CSV
 # 3) plot the optimal polices
 # 4) The plot is saved .\RiskMDP.jl
 # ---------------------------------------------------------------
+
+####
 
 """
 load a transient mdp from a csv file, 1-based index
@@ -236,47 +239,31 @@ function compute_erm(value_function :: Vector, initial_state_pro :: Vector, β::
 end
 
 
-# Show unbounded ERM value functions, NO simulation for Infeasible solutions 
-# plot erm values for a discounted MDP and a transient MDP, single state
-function  erms_dis_trc(erm_trc, betas)
-    
-    erm_discounted = -2
-    erm_dis = fill(erm_discounted,size(betas))
-
-    p=plot(betas,erm_trc,label="trc", linewidth=3,legend = :outertopright)
-    plot!(betas,erm_dis,label="discounted", linewidth=3,linestyle=:dot)
-    xlims!(minimum(betas),last(betas))
-    ylims!(-12.5,-1.5)
-    xlabel!("β")
-    ylabel!("ERM value")
-    savefig(p,"erm_values_unbounded.pdf")
-
- end
 
  # Given four different α values, plot the optimal policies
  function plot_optimal_policy()
 
-# Delete the first state, last state and the sink state
-# investment = action -1
-α1 = 0.9
-π1 = [1, 2, 2, 2, 4, 3, 2, 1, 1]
-y1 =[1, 1, 1, 3, 2, 1]
+    # Delete the first state, last state and the sink state
+    # investment = action -1
+    α1 = 0.9
+    π1 = [1, 2, 2, 2, 4, 3, 2, 1, 1]
+    y1 =[1, 1, 1, 3, 2, 1]
 
-α2 = 0.7
-π2 = [1, 2, 2, 2, 2, 2, 2, 1, 1]
-y2 =[1, 1, 1, 1, 1, 1,]
-
-
-α3 = 0.40
-π3 = [1, 3, 2, 2, 2, 2, 2, 1, 1]
-#y3 = [3, 2, 2, 2, 2, 2]
-y3 = [0, 1, 1, 1, 1, 1] # 3, quit, draw 0
+    α2 = 0.7
+    π2 = [1, 2, 2, 2, 2, 2, 2, 1, 1]
+    y2 =[1, 1, 1, 1, 1, 1,]
 
 
-α4 = 0.20
-π4 = [1, 3, 4, 5, 6, 7, 8, 1, 1]
-#y4 = [ 3, 4, 5, 6, 7, 8]
-y4 = [ 0, 0, 0, 0, 0, 0] # quit, draw 0
+    α3 = 0.40
+    π3 = [1, 3, 2, 2, 2, 2, 2, 1, 1]
+    #y3 = [3, 2, 2, 2, 2, 2]
+    y3 = [0, 1, 1, 1, 1, 1] # 3, quit, draw 0
+
+
+    α4 = 0.20
+    π4 = [1, 3, 4, 5, 6, 7, 8, 1, 1]
+    #y4 = [ 3, 4, 5, 6, 7, 8]
+    y4 = [ 0, 0, 0, 0, 0, 0] # quit, draw 0
 
    
    states= []
@@ -286,31 +273,31 @@ y4 = [ 0, 0, 0, 0, 0, 0] # quit, draw 0
 
    ymax = 4
 
-    p = scatter(states, y1,  markershape = :star5,markersize = 13,
-               label = "α = $α1",markerstrokecolor = "blue",
-                 markerstrokewidth=3.5,xticks = 1:1:7, yticks = 0:1:ymax,
-                 legend=:topleft)
-
-        scatter!(states, y2;  markersize=17,markershape=:rect, markeralpha = 0.6,
+        scatter(states, y2;  markersize=10, markershape=:rect, 
                  markercolor=RGBA(1, 1, 1, 0),label = "α = $α2",markerstrokecolor = "darkgreen",
-                 markerstrokewidth=3.5, xticks = 1:1:7, yticks = 0:1:ymax )
-                 
-        scatter!(states, y3,  markershape = :ltriangle ,markersize = 16,markeralpha = 0.4,
+                 markerstrokewidth=2, xticks = 1:1:7, yticks = 0:1:ymax )
+     
+        scatter!(states, y3,  markershape = :ltriangle ,markersize = 8,
                 markercolor=RGBA(1, 1, 1, 0), label = "α = $α3",markerstrokecolor = "red",
-                markerstrokewidth=3.5,xticks = 1:1:7, yticks = 0:1:ymax )
+                markerstrokewidth=2,xticks = 1:1:7, yticks = 0:1:ymax )
+
+        scatter!(states, y1,  markershape = :star5,markersize = 6,
+               label = "α = $α1",markerstrokecolor = "blue",
+                 markerstrokewidth=2,xticks = 1:1:7, yticks = 0:1:ymax,
+                legend=:topleft,
+                size = (350,240))
 
         scatter!(states, y4,  markershape = :circle,markersize = 5,
                  markercolor=RGBA(1, 1, 1, 0),label = "α = $α4",markerstrokecolor = "purple",
-                markerstrokewidth=3.5,xticks = 0:1:7, yticks = 0:1:ymax )
+                markerstrokewidth=2,xticks = 0:1:7, yticks = 0:1:ymax )
 
             
          xlims!(0,7)
-         ylims!(0,4)
-         xlabel!("state")
-         ylabel!("optimal action")
+         ylims!(-0.5,4)
+         xlabel!("State")
+         ylabel!("Optimal action")
     
-         savefig(p,"policy.pdf")
-
+         savefig("policy.pdf")
  end
 
 
@@ -328,8 +315,7 @@ function main_evar()
     # 7 mgp0.68.csv; 0.68 is the probabilty of winning a game
     # Gambler(7,0.68)
 
-    filepath = joinpath(dirname(pathof(RiskMDPs)), 
-                   "data", "7 mgp0.68.csv") 
+    filepath = joinpath(dirname(pathof(RiskMDPs)), "data", "7 mgp0.68.csv") 
                     
     model = load_mdp(File(filepath))
 
@@ -349,11 +335,11 @@ function main_evar()
 
 
     #Compute the optimal policy 
-    #erm_trc, betas,opt_policy = compute_optimal_policy(alpha_array,initial_state_pro, model,δ)
+    #erm_trc, betas,opt_policy = compute_optimal_policy(alpha_array, initial_state_pro, model,δ)
 
 
     # plot erm values in a discounted MDP and a transient MDP
-    # erms_dis_trc(erm_trc, betas)
+    #erms_dis_trc(erm_trc, betas)
 
 
     # Plot the optimal policies. The optimal polices are copied inside the function
@@ -410,6 +396,47 @@ main_evar()
 #main_erm()
 
 
+
+
+#####
+
+
+# Show unbounded ERM value functions, NO simulation for Infeasible solutions 
+# plot erm values for a discounted MDP and a transient MDP, single state
+function  erms_dis_trc(erm_trc, betas)
+    
+    erm_discounted = -2
+    erm_dis = fill(erm_discounted, size(betas))
+
+    p = plot(betas,erm_trc,label="TRC", linewidth=3, legend = :bottomleft,
+             size = (350,240))
+    plot!(betas,erm_dis,label="Discounted", linewidth=3,linestyle=:dot)
+    xlims!(minimum(betas),last(betas))
+    ylims!(-12.5,-1.5)
+    xlabel!("β")
+    ylabel!("ERM value")
+    savefig(p,"erm_values_unbounded.pdf")
+
+ end
+
+
+function plot_unbounded()
+    # # file for a single state, plot unbunded erm and constant erm 
+     filepath = joinpath(dirname(pathof(RiskMDPs)), "data", "single_tra.csv")
+     initial_state_pro = [1,0]
+     model = load_mdp(File(filepath))
+     alpha_array = [0.7]
+
+    erm_trc, betas,opt_policy = compute_optimal_policy(alpha_array, initial_state_pro, model,0.00001)
+
+    # plot erm values in a discounted MDP and a transient MDP
+    erms_dis_trc(erm_trc, betas)
+end
+
+plot_unbounded()
+
+
+#####
 
 
 
