@@ -15,6 +15,7 @@ RiskMeasures = "b5a8929a-7a15-4aed-937e-21e1a404cbc5"
 Arrow = "2.7.4"
 CSV = "0.10.15"
 DataStructures = "0.18.0"
+MDPs = "0.1.5"
 RiskMeasures = "0.4.0"
 julia = "1.9"
 
