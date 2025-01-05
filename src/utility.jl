@@ -7,7 +7,7 @@ import Base: length
 # TODO: If the algorithms dont work by simply augmenting the states
 # then how do they work.
 # *****************************************************************
-# IMPLEMENTATION NOTE: The algorithms do not work by simply augmenting the states 
+# IMPLEMENTATION NOTE: The algorithms do not work by simply augmenting the states
 # because that makes it difficult to generalize to
 # value function approximation, particularly over the augmented state space
 # *****************************************************************
@@ -37,7 +37,7 @@ struct UtilityEVaR <: Utility end
 """
     AugUtility(γ, α, T)
 
-Represents an objective for a utility function u(t,z) where t 
+Represents an objective for a utility function u(t,z) where t
 the state space and assumes a discount factor `γ`.
 
 The value function and the q functions are represented as a collection of values
@@ -126,9 +126,9 @@ const DscAction = Discretized{Int}
 """
     pw_const_near(d, x)
 
-Interpret the discretized values in `d` as piecewise constant with
-the value of the function being the closest mesh element.
-Note: if x is equidistant from two mesh points x1 and x2, the function returns
+Return the value of the piecewise constant function `d` at the point `x`. If `x` is
+not in `d`, then the value of the nearest point is returned.
+    !!! note if x is equidistant from two mesh points x1 and x2, the function returns
 the value of the first mesh point x1.
 """
 function pw_const_near(d::Discretized, x::Real)
@@ -212,8 +212,7 @@ level `g`
 """
 function au_terminal_value end
 
-au_terminal_value(obj::AugUtility{UtilityVaR}, g::Real) =
-    (g ≤ zero(g) ? 1.0 : 0.0)::Float64
+au_terminal_value(obj::AugUtility{UtilityVaR}, g::Real) = (g ≤ zero(g) ? 1.0 : 0.0)::Float64
 
 # --------------------------------------------------------------------
 # Bellman update functions
@@ -223,7 +222,7 @@ au_terminal_value(obj::AugUtility{UtilityVaR}, g::Real) =
 """
     qvalue(mdp, [t], obj, s, a, v)
 
-Compute the qfunction for the augmented utility MDP objective with the 
+Compute the qfunction for the augmented utility MDP objective with the
 state `s` and action `a`. Also computes the target levels for the next state,
 which is useful when deploying a policy.
 
@@ -291,7 +290,7 @@ end
 # --------------------------------------------------------------------
 
 """
-    value_iteration(model, objective; [vterminal]) 
+    value_iteration(model, objective; [vterminal])
 
 Compute value function and policy for a tabular MDP `model` with an augmented objective
 an objective `objective`. The time steps go from 1 to T+1, the last decision happens
@@ -392,7 +391,7 @@ end
 # creates the internal simulation state
 function make_internal(::TabMDP, π::PolicyAugU{U},
     ::Int)::AuState where {U<:Utility}
-    # find the smallest risk index that is greater than 
+    # find the smallest risk index that is greater than
     (time=1, target=π.target_start)
 end
 
@@ -405,5 +404,4 @@ function append_history(π::PolicyAugU, internal::AuState, tran::Transition)::Au
 end
 
 # return the best action for the closest known point
-take_action(π::PolicyAugU, int::AuState, s::Int) =
-    pw_const_near(π.policy[int.time][s], int.target)
+take_action(π::PolicyAugU, int::AuState, s::Int) = pw_const_near(π.policy[int.time][s], int.target)
