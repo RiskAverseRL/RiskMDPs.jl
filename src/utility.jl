@@ -102,6 +102,7 @@ struct Discretized{T}
     function Discretized{T}(mesh::Vector{Float64}, values::Vector{T}) where {T}
         length(mesh) == length(values) || error("Lengths must be the same")
         new{T}(mesh, SortedVector(values))
+        new{T}(SortedVector(mesh), values)
     end
 end
 
