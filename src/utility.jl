@@ -79,20 +79,22 @@ Represents a sorted vector of floats. Used to eliminate excessive checks
 for sortedness when constructing `Discretized` from existing meshes
 """
 struct SortedVector
-    x :: Float64
+    x::Vector{Float64}
     function SortedVector(x::Vector{Float64})
         issorted(x) || error("mesh values must be sorted")
         new(x)
     end
 end
+length(sv::SortedVector) = length(sv.x)
+Base.getindex(sv::SortedVector, i::Int64) = sv.x[i]
 
 """
 Represents a discretized value for a mesh. It could represent the value
 function or a policy. The `mesh` is the x value and `values` is a y value.
 """
 struct Discretized{T}
-    mesh :: SortedVector
-    values :: Vector{T}
+    mesh::SortedVector
+    values::Vector{T}
 
     function Discretized{T}(mesh::SortedVector, values::Vector{T}) where {T}
         length(mesh) == length(values) || error("Lengths must be the same")
@@ -101,7 +103,6 @@ struct Discretized{T}
 
     function Discretized{T}(mesh::Vector{Float64}, values::Vector{T}) where {T}
         length(mesh) == length(values) || error("Lengths must be the same")
-        new{T}(mesh, SortedVector(values))
         new{T}(SortedVector(mesh), values)
     end
 end
@@ -125,16 +126,18 @@ const DscAction = Discretized{Int}
 
 Interpret the discretized values in `d` as piecewise constant with
 the value of the function being the closest mesh element.
+Note: if x is equidistant from two mesh points x1 and x2, the function returns
+the value of the first mesh point x1.
 """
 function pw_const_near(d::Discretized, x::Real)
-    xlast = searchsortedlast(d.mesh, x)
+    xrange = searchsorted(d.mesh.x, x)
+    xlast, xfirst = xrange.start, xrange.stop
     # element smaller than the range
-    xlast < 1 && return first(d.values)
+    xfirst < 1 && return first(d.values)
+    # element larger than the range
+    xlast > length(d.mesh) && return last(d.values)
 
-    xfirst = searchsortedfirst(d.mesh, x)
-    xfirst > length(d.mesh) && return last(d.values)
-
-    if abs(d.mesh[xfirst] - x) < abs(d.mesh[xlast] - x)
+    if abs(d.mesh[xfirst] - x) <= abs(d.mesh[xlast] - x)
         return d.values[xfirst]
     else
         return d.values[xlast]
