@@ -137,11 +137,7 @@ function pw_const_near(d::Discretized, x::Real)
     # element larger than the range
     xlast > length(d.mesh) && return last(d.values)
 
-    if abs(d.mesh[xfirst] - x) <= abs(d.mesh[xlast] - x)
-        return d.values[xfirst]
-    else
-        return d.values[xlast]
-    end
+    abs(d.mesh[xfirst] - x) <= abs(d.mesh[xlast] - x) ? d.values[xfirst] : d.values[xlast]
 end
 
 ## TODO: also implement a left and right continuous values
