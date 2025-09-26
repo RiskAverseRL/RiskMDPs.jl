@@ -4,8 +4,10 @@ using MDPs
 # others
 import Base: length
 
+# TODO: If the algorithms dont work by simply augmenting the states
+# then how do they work.
 # *****************************************************************
-# IMPLEMENTATION NOTE: The algorithms do not work by simply augmenting the states 
+# IMPLEMENTATION NOTE: The algorithms do not work by simply augmenting the states
 # because that makes it difficult to generalize to
 # value function approximation, particularly over the augmented state space
 # *****************************************************************
@@ -35,20 +37,20 @@ struct UtilityEVaR <: Utility end
 """
     AugUtility(γ, α, T)
 
-Represents an objective for a utility function u(t,z) where t 
+Represents an objective for a utility function u(t,z) where t
 the state space and assumes a discount factor `γ`.
 
 The value function and the q functions are represented as a collection of values
 for each of the risk levels η.
 """
-struct AugUtility{U} <: AugmentedMarkov where {U <: Utility}
+struct AugUtility{U} <: AugmentedMarkov where {U<:Utility}
     γ::Float64  # discount factor
     u::U        # utility function
     T::Int      # horizon
     mesh::Vector{Float64}  # absolute mesh (the same across time horizon)
 
     function AugUtility(γ::Number, u::U, T::Integer,
-                        mesh::Vector{Float64}) where {U <: Utility}
+        mesh::Vector{Float64}) where {U<:Utility}
         one(γ) ≥ γ ≥ zero(γ) || error("Discount γ must be in [0,1]")
         issorted(mesh) || error("Mesh values must be sorted increasingly")
         new{U}(γ, u, T, mesh)
@@ -79,20 +81,22 @@ Represents a sorted vector of floats. Used to eliminate excessive checks
 for sortedness when constructing `Discretized` from existing meshes
 """
 struct SortedVector
-    x :: Float64
+    x::Vector{Float64}
     function SortedVector(x::Vector{Float64})
         issorted(x) || error("mesh values must be sorted")
         new(x)
     end
 end
+length(sv::SortedVector) = length(sv.x)
+Base.getindex(sv::SortedVector, i::Int64) = sv.x[i]
 
 """
 Represents a discretized value for a mesh. It could represent the value
 function or a policy. The `mesh` is the x value and `values` is a y value.
 """
 struct Discretized{T}
-    mesh :: SortedVector
-    values :: Vector{T}
+    mesh::SortedVector
+    values::Vector{T}
 
     function Discretized{T}(mesh::SortedVector, values::Vector{T}) where {T}
         length(mesh) == length(values) || error("Lengths must be the same")
@@ -101,7 +105,7 @@ struct Discretized{T}
 
     function Discretized{T}(mesh::Vector{Float64}, values::Vector{T}) where {T}
         length(mesh) == length(values) || error("Lengths must be the same")
-        new{T}(mesh, SortedVector(values))
+        new{T}(SortedVector(mesh), values)
     end
 end
 
@@ -122,22 +126,20 @@ const DscAction = Discretized{Int}
 """
     pw_const_near(d, x)
 
-Interpret the discretized values in `d` as piecewise constant with
-the value of the function being the closest mesh element.
+Return the value of the piecewise constant function `d` at the point `x`. If `x` is
+not in `d`, then the value of the nearest point is returned.
+    !!! note if x is equidistant from two mesh points x1 and x2, the function returns
+the value of the first mesh point x1.
 """
 function pw_const_near(d::Discretized, x::Real)
-    xlast = searchsortedlast(d.mesh, x)
+    xrange = searchsorted(d.mesh.x, x)
+    xlast, xfirst = xrange.start, xrange.stop
     # element smaller than the range
-    xlast < 1 && return first(d.values)
+    xfirst < 1 && return first(d.values)
+    # element larger than the range
+    xlast > length(d.mesh) && return last(d.values)
 
-    xfirst = searchsortedfirst(d.mesh, x)
-    xfirst > length(d.mesh) && return last(d.values)
-
-    if abs(d.mesh[xfirst] - x) < abs(d.mesh[xlast] - x)
-        return d.values[xfirst]
-    else
-        return d.values[xlast]
-    end
+    abs(d.mesh[xfirst] - x) <= abs(d.mesh[xlast] - x) ? d.values[xfirst] : d.values[xlast]
 end
 
 ## TODO: also implement a left and right continuous values
@@ -156,8 +158,7 @@ const AuPolicy = Vector{DscValue}
 Create a constant value function for the augment objective for
 all states in the MDP
 """
-function constant_value(model::TabMDP, objective::AugUtility,
-                        value::Float64, t::Int)
+function constant_value(model::TabMDP, objective::AugUtility, value::Float64, t::Int)
     mesh = value_mesh(model, objective, t)
     # TODO: is there a better way to do this?
     [DscValue(mesh, fill(value, length(mesh))) for _ in 1:state_count(model)]
@@ -169,7 +170,7 @@ end
 # --------------------------------------------------------------------
 
 # tabular transition
-const TabTransition = Transition{Int, Int}
+const TabTransition = Transition{Int,Int}
 
 """
     next_au_target(obj, target, tran)
@@ -180,7 +181,7 @@ Return the next target level (augmentation) for an objective `obj` when starting
 function next_au_target end
 
 next_au_target(obj::AugUtility{UtilityVaR}, target::Real, tran::Transition) =
-    (Float64(target) - tran.reward) / obj.γ :: Float64
+    (Float64(target) - tran.reward) / obj.γ::Float64
 
 """
    au_reward(obj, target, tran)
@@ -190,7 +191,7 @@ target `target`.
 """
 function au_reward end
 
-au_reward(::AugUtility{UtilityVaR}, ::Real, ::Transition) = 0.0 :: Float64
+au_reward(::AugUtility{UtilityVaR}, ::Real, ::Transition) = 0.0::Float64
 
 
 """
@@ -201,7 +202,7 @@ target `g`.
 """
 function au_discount end
 
-au_discount(::AugUtility{UtilityVaR}, ::Real, ::Transition) = 1.0 :: Float64
+au_discount(::AugUtility{UtilityVaR}, ::Real, ::Transition) = 1.0::Float64
 
 """
     au_terminal_value(obj, g, tran)
@@ -211,8 +212,7 @@ level `g`
 """
 function au_terminal_value end
 
-au_terminal_value(obj::AugUtility{UtilityVaR}, g::Real) = 
-    (g ≤ zero(g) ? 1.0 : 0.0) :: Float64
+au_terminal_value(obj::AugUtility{UtilityVaR}, g::Real) = (g ≤ zero(g) ? 1.0 : 0.0)::Float64
 
 # --------------------------------------------------------------------
 # Bellman update functions
@@ -222,13 +222,13 @@ au_terminal_value(obj::AugUtility{UtilityVaR}, g::Real) =
 """
     qvalue(mdp, [t], obj, s, a, v)
 
-Compute the qfunction for the augmented utility MDP objective with the 
+Compute the qfunction for the augmented utility MDP objective with the
 state `s` and action `a`. Also computes the target levels for the next state,
 which is useful when deploying a policy.
 
 The function uses a piecewise constant discretization of the utility value function
 """
-function qvalue end 
+function qvalue end
 
 # just translates the time-dependent update to a time-independent one
 # the second parameter is t = time
@@ -241,9 +241,9 @@ function qvalue(mdp::TabMDP, obj::AugUtility, s::Int, a::Int, v::AuValue)
     mesh = value_mesh(obj)
     n = length(mesh)
 
-    qvalues = zeros(n) 
+    qvalues = zeros(n)
     # iterate over target levels g
-    for (meshind,target) ∈ enumerate(mesh)
+    for (meshind, target) ∈ enumerate(mesh)
         # iterate over all next states
         for (s′, p, r) ∈ transition(mdp, s, a)
             # TODO: make sure that the things do not break even when a single
@@ -251,26 +251,25 @@ function qvalue(mdp::TabMDP, obj::AugUtility, s::Int, a::Int, v::AuValue)
             tran = Transition(s, a, r, s′, -1)
             g′ = next_au_target(obj, target, tran)
             qvalues[meshind] += p * (au_reward(obj, target, tran) +
-                au_discount(obj, target, tran) * pw_const_near(v[s′], g′))
+                                     au_discount(obj, target, tran) * pw_const_near(v[s′], g′))
         end
     end
     DscValue(mesh, qvalues)
 end
 
 bellmangreedy(mdp::MDP{S,A}, t, obj::AugUtility, s::S, v) where {S,A} =
-    bellmangreedy(mdp, obj, s, v )
-    
+    bellmangreedy(mdp, obj, s, v)
+
 # compute the maximum for each discretization level
-function bellmangreedy(mdp::MDP{S,A}, obj::AugUtility, s::S,
-                       v::AuValue) where {S,A}
+function bellmangreedy(mdp::MDP{S,A}, obj::AugUtility, s::S, v::AuValue) where {S,A}
 
     isterminal(mdp, s) && error("Terminal states not supported")
 
-    mesh = value_mesh(obj)
+    mesh = value_mesh(obj) # TODO: How does this work?
 
     acts = actions(mdp, s)
     qvalues = [qvalue(mdp, obj, s, a, v) for a ∈ acts]
-    
+
     # holds results
     bestactions = Vector{Int}(undef, length(mesh))
     valuefunctions = Vector{Float64}(undef, length(mesh))
@@ -278,12 +277,12 @@ function bellmangreedy(mdp::MDP{S,A}, obj::AugUtility, s::S,
     # compute the best action for each one of the risk levels
     for meshind ∈ eachindex(mesh)
         amax = argmax(qvalues[a].values[meshind] for a ∈ eachindex(acts))
-        bestactions[meshind] =  acts[amax]
+        bestactions[meshind] = acts[amax]
         valuefunctions[meshind] = qvalues[amax].values[meshind]
     end
 
-    (qvalue = DscValue(obj, valuefunctions), 
-        action = DscAction(obj, bestactions))
+    (qvalue=DscValue(obj, valuefunctions),
+        action=DscAction(obj, bestactions))
 end
 
 # --------------------------------------------------------------------
@@ -291,7 +290,7 @@ end
 # --------------------------------------------------------------------
 
 """
-    value_iteration(model, objective; [vterminal]) 
+    value_iteration(model, objective; [vterminal])
 
 Compute value function and policy for a tabular MDP `model` with an augmented objective
 an objective `objective`. The time steps go from 1 to T+1, the last decision happens
@@ -306,9 +305,9 @@ function value_iteration(model::TabMDP, objective::AugUtility)
     n = state_count(model)
 
     # the outer array is over the time steps
-    v = Vector{AuValue}(undef, horizon(objective)+1)
+    v = Vector{AuValue}(undef, horizon(objective) + 1)
     π = Vector{AuPolicy}(undef, horizon(objective))
-    
+
     # initialize final value function (the values are the same for all states)
     endvalue = [au_terminal_value(objective, g) for g in objective.mesh]
     v[end] = fill(endvalue, n) # references to the same value intentional
@@ -317,17 +316,17 @@ function value_iteration(model::TabMDP, objective::AugUtility)
         # initialize vectors
         v[t] = Vector{DscValue}(undef, n)
         π[t] = Vector{DscAction}(undef, n)
-        Threads.@threads for s ∈ 1:n           
+        Threads.@threads for s ∈ 1:n
             local bg = bellmangreedy(model, t, objective, s, v[t+1])
             v[t][s] = bg.qvalue
             π[t][s] = bg.action
         end
     end
-    return (policy = π, value = v)
+    return (policy=π, value=v)
 end
 
 function value_iteration(mdp::TabMDP, objective::AugmentedMarkov)
-    value_iteration(mdp, objective, constant_value(mdp, objective, 0.))
+    value_iteration(mdp, objective, constant_value(mdp, objective, 0.0))
 end
 
 # TODO: implement methods that compute upper and lower bounds on the value function
@@ -351,9 +350,11 @@ values are useful in simulation and when coputing the actual predicted risk valu
 """
 function utility_risk end
 
-function utility_risk(::AugUtility{UtilityVaR}, targets::DscValue, α::Real)  
+function utility_risk(::AugUtility{UtilityVaR}, targets::DscValue, α::Real)
     @assert issorted(targets.values)
-    # TODO: this method really needs test cases
+    # TODO: This is wrong and inefficient
+    # TODO: This definition of VaR is not consistent with the definition
+    # in RiskMeasures, the α here is 1-α there
 
     # the VaR definition for a level α is
     # sup { t | P[X >= t] ≥ 1-α } = sup { t | P[X <= t] ≤ α }
@@ -369,14 +370,11 @@ function utility_risk(::AugUtility{UtilityVaR}, targets::DscValue, α::Real)
     end
 end
 
-# TODO: This definition of VaR is not consistent with the definition
-# in RiskMeasures, the α here is 1-α there
-
 # --------------------------------------------------------------------
 # Simulation policy (history-dependent and time-dependent)
 # --------------------------------------------------------------------
 
-const AuState = NamedTuple{(:time, :target), Tuple{Int64, Float64}}
+const AuState = NamedTuple{(:time, :target),Tuple{Int64,Float64}}
 
 """
     PolicyAugU(obj, policy, target_start)
@@ -384,27 +382,26 @@ const AuState = NamedTuple{(:time, :target), Tuple{Int64, Float64}}
 Policy with the internal state that represents the time step and the
 current target value.
 """
-struct PolicyAugU{U} <: Policy{Int,Int,AuState} where {U <: Utility}
-    obj :: AugUtility{U}          # objective
-    policy :: Vector{AuPolicy}    # time, state, target
-    target_start :: Float64       # initial target value
+struct PolicyAugU{U} <: Policy{Int,Int,AuState} where {U<:Utility}
+    obj::AugUtility{U}          # objective
+    policy::Vector{AuPolicy}    # time, state, target
+    target_start::Float64       # initial target value
 end
 
 # creates the internal simulation state
 function make_internal(::TabMDP, π::PolicyAugU{U},
-                       ::Int) :: AuState where {U <: Utility}
-    # find the smallest risk index that is greater than 
-    (time = 1, target = π.target_start)
+    ::Int)::AuState where {U<:Utility}
+    # find the smallest risk index that is greater than
+    (time=1, target=π.target_start)
 end
 
-function append_history(π::PolicyAugU, internal::AuState, tran::Transition) :: AuState
+function append_history(π::PolicyAugU, internal::AuState, tran::Transition)::AuState
     @assert tr.time == internal.time + 1 # advances by one
     # update the risk index
     next_t = next_au_target(π.obj, internal.target, tran)
     # make sure the state is actually found
-    (time = tr.time, target = next_t)
+    (time=tr.time, target=next_t)
 end
 
 # return the best action for the closest known point
-take_action(π::PolicyAugU, int::AuState, s::Int) = 
-    pw_const_near(π.policy[int.time][s], int.target)
+take_action(π::PolicyAugU, int::AuState, s::Int) = pw_const_near(π.policy[int.time][s], int.target)
