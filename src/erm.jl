@@ -34,7 +34,7 @@ function qvalue(model::MDP{S,A}, obj::DiscountedERM, t::Integer, s::S, a::A, v) 
     # TODO: This still allocates, though less
     X = valuefunction.((model,), spr.states, (v,) )
     X *=  obj.γ
-    X += spr.rewards 
+    X .+= spr.rewards 
     # note that the risk level decreses with the time step
     ERM(X, spr.probabilities, obj.β * (obj.γ^(t-1))) :: Float64
 end
@@ -75,7 +75,7 @@ function qvalue(model::MDP{S,A}, obj::InfiniteERM, s::S, a::A, v) where {S,A}
     spr = getnext(model, s, a)
     # TODO: This still allocates, though less
     X = valuefunction.((model,), spr.states, (v,) )
-    X += spr.rewards 
+    X .+= spr.rewards 
     ERM(X, spr.probabilities, obj.β) :: Float64
 end
 
