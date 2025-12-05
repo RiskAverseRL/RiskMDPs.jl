@@ -6,6 +6,8 @@ using .VarDP
 
 # Load the MDP from CSV
 mdp_path = joinpath(@__DIR__, "..", "data", "inventory2.csv")
+#mdp_path = joinpath(dirname(pathof(MDPs)), "..", "data", "inventory.arr")
+
 println("Loading MDP from: $mdp_path")
 
 mdp = VarDP.load_intmdp(mdp_path)
@@ -31,13 +33,11 @@ X = vcat(-Inf, collect(grid_min:Δτ:grid_max), Inf)
 K = length(X)
 println("Grid size K = $K")
 
-
-
 println("Using horizon T = $T, α = $α, initial state s0 = $s0")
 
 # Run VarDP value iteration 
 println("\nRunning VarDP with side = :plus (h^+)…")
-V_plus, π_plus = VarDP.vi(mdp, X, T; side=:plus)
+V_plus, π_plus = VarDP.vi_basic(mdp, X, T; side=:plus)
 
 println("  V_plus size: ", size(V_plus))   # (T+1, S, K)
 println("  π_plus size: ", size(π_plus))   # (T,   S, K)
@@ -46,7 +46,7 @@ println("  π_plus size: ", size(π_plus))   # (T,   S, K)
 
 
 println("\nRunning VaR-DP with side = :minus (h^-)…")
-V_minus, π_minus = VarDP.vi(mdp, X, T; side=:minus)
+V_minus, π_minus = VarDP.vi_basic(mdp, X, T; side=:minus)
 
 println("  V_minus size: ", size(V_minus)) # (T+1, S, K)
 println("  π_minus size: ", size(π_minus)) # (T,   S, K)

@@ -95,7 +95,7 @@ Returns:
     π :: Array{Int, 3} with size (T, S, K)
         where π[t, s, k] = greedy action at time t in state s with threshold X[k]
 """
-function vi(mdp::IntMDP,
+function vi_basic(mdp::IntMDP,
             X::Vector{Float64},
             T::Int;
             side::Symbol = :plus)
