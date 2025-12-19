@@ -77,7 +77,7 @@ end
 
 
 """
-    vi(mdp, X, T; γ=0.9, side=:plus)
+    vi_basic(mdp, X, T; γ=0.9, side=:plus)
 
 Value iteration on IntMDP with VarDP approximation.
 
