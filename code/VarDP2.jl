@@ -196,21 +196,20 @@ function var(V::Vector{Matrix{Float64}},
    
     X = X[t+1]
     vals = @view V[t+1][s, :]   # row for state s
-    # K = length(X)
+  
 
     target = 1.0 - α
 
  
-    # idx = nothing
-    # for k ∈ 1:K
+
     for k ∈ eachindex(X)
         if vals[k] ≥ target #(v[x1],v[x2],...,v[xk])
-            # idx = k
+           
             return X[k]
         end
     end
     return nothing
-    # return idx ===nothing ? nothing : X[idx]
+   
 end
 
 
