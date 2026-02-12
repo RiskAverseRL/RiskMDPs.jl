@@ -9,7 +9,7 @@ using .VarDP3
 # -----------------------------
 # Load MDP
 # -----------------------------
-mdp_path = joinpath(@__DIR__, "..", "data", "machine.csv")
+mdp_path = joinpath(@__DIR__, "..", "data", "ruin.csv")
 mdp = VarDP3.load_intmdp(mdp_path)
 S   = state_count(mdp)
 
@@ -19,7 +19,7 @@ S   = state_count(mdp)
 T  = 10
 α  = 0.1
 t0 = 0
-s0 = 1  # initial state for plots
+s0 = 5  # initial state for plots
 
 rmax = VarDP3.max_abs_reward(mdp)
 
@@ -27,7 +27,7 @@ rmax = VarDP3.max_abs_reward(mdp)
 # Fixed τ-grid (same for all t)
 # -----------------------------
 grid_scale = 10.0   # widen grid to avoid clipping
-Δτ         = 0.05    # grid step size
+Δτ         = 0.5    # grid step size
 
 M = grid_scale * T * rmax
 Xgrid = vcat(-Inf, collect(-M:Δτ:M), Inf)
@@ -61,42 +61,21 @@ for s in 1:S
     VaR_plus_all[s]  = VarDP3.var(V_plus,  X, t0, s, α)  # VaR^+
 end
 
-println("\nVaR bounds at t=$t0 (left-quantile level α=$α)")
+# Print VaR bounds for alpha=0.25
+α_print = 0.25
+println("\nVaR bounds at t=$t0 (left-quantile level α=$α_print)")
 for s in 1:S
-    println("State $s:  VaR^- = $(VaR_minus_all[s])   VaR^+ = $(VaR_plus_all[s])")
+    VaR_minus_025 = VarDP3.var(V_minus, X, t0, s, α_print)
+    VaR_plus_025 = VarDP3.var(V_plus, X, t0, s, α_print)
+    println("State $s:  VaR^- = $(VaR_minus_025)   VaR^+ = $(VaR_plus_025)")
 end
 
 # -----------------------------
 # Policy at VaR slices (time t0)
 # Use hm/hp (h^- / h^+) for consistent grid snapping
 # -----------------------------
-println("\n" * repeat("=", 70))
-println("POLICIES AT VaR SLICES (time t=$t0)")
-println(repeat("=", 70))
-println("State |   VaR^-    a^-   ||    VaR^+    a^+")
-println(repeat("-", 55))
-
 grid0 = X[t0+1]
 mesh0 = VarDP3.Mesh(grid0)
-
-for s in 1:S
-    τm = VaR_minus_all[s]   # VaR^-
-    τp = VaR_plus_all[s]    # VaR^+
-
-    if τm === nothing || τp === nothing
-        @printf("%5d |  (VaR not found on grid)\n", s)
-        continue
-    end
-
-    km = VarDP3.hm(mesh0, τm)  # floor index (h^-)
-    kp = VarDP3.hp(mesh0, τp)  # ceil index  (h^+)
-
-    am = π_minus[t0+1][s, km]
-    ap = π_plus[t0+1][s, kp]
-
-    @printf("%5d | %8.2f %4d  || %8.2f %4d\n", s, τm, am, τp, ap)
-end
-println(repeat("-", 55))
 
 # -----------------------------
 # Save policy-at-VaR table to CSV
@@ -145,7 +124,23 @@ plot!(p1, τgrid, v_plus, label="v⁺ (h⁺)", lw=2)
 display(p1)
 
 # Figure 2: VaR bounds for state s0 across multiple α values
-alphas = collect(0.1:0.1:0.9)
+alphas = sort(vcat(collect(0.1:0.1:0.9), 0.25))
+
+# Save VaR bounds by alpha to CSV
+bounds_file = joinpath(output_dir, "var_bounds_by_alpha_t$(t0).csv")
+open(bounds_file, "w") do f
+    write(f, "alpha,state,VaR_minus,VaR_plus\n")
+    for αi in alphas
+        for s in 1:S
+            VaR_minus_i = VarDP3.var(V_minus, X, t0, s, αi)
+            VaR_plus_i  = VarDP3.var(V_plus,  X, t0, s, αi)
+            if VaR_minus_i !== nothing && VaR_plus_i !== nothing
+                write(f, "$αi,$s,$VaR_minus_i,$VaR_plus_i\n")
+            end
+        end
+    end
+end
+println("\n✓ Saved: $bounds_file")
 
 p2 = plot(
     xlabel = "α",
